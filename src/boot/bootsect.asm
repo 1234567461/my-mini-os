@@ -1,72 +1,96 @@
 ; ==========================================
-; 我的第一个操作系统 - 引导扇区
-; 功能：电脑启动后显示 "Hello, My Mini OS!"
+; 第一阶段引导扇区 - Boot Sector
+; 功能：加载第二阶段loader到内存，然后跳转
 ; ==========================================
 
-; BIOS把引导扇区加载到内存 0x7c00 位置
-; 告诉汇编器：我们的代码从 0x7c00 开始
 org 0x7c00
 
 ; ====== 初始化寄存器 ======
-mov ax, 0           ; ax = 0
-mov ds, ax          ; 数据段 = 0
-mov es, ax          ; 附加段 = 0
-mov ss, ax          ; 栈段 = 0
-mov sp, 0x7c00      ; 栈顶指针 = 0x7c00 (栈向下生长)
+mov ax, 0
+mov ds, ax
+mov es, ax
+mov ss, ax
+mov sp, 0x7c00
 
 ; ====== 清屏 ======
-mov ah, 0x00        ; BIOS功能：设置视频模式
-mov al, 0x03        ; 模式3 = 80x25 16色文本模式
-int 0x10            ; 调用BIOS中断
+mov ah, 0x00
+mov al, 0x03
+int 0x10
 
-; ====== 显示欢迎信息 ======
-mov si, boot_msg    ; si = 字符串地址
-call print_string   ; 调用打印函数
-
-; ====== 显示提示信息 ======
-mov si, hint_msg
+; ====== 显示启动信息 ======
+mov si, boot_msg
 call print_string
 
-; ====== 死循环，停在这里 ======
-jmp $
+; ====== 加载第二阶段Loader ======
+; BIOS 读磁盘功能: int 0x13
+; ah = 0x02 (读扇区)
+; al = 扇区数
+; ch = 柱面号
+; cl = 扇区号 (从1开始)
+; dh = 磁头号
+; dl = 驱动器号
+; es:bx = 内存缓冲区地址
+
+mov bx, 0x1000      ; 把loader加载到 0x1000:0x0000 = 0x10000
+mov es, bx
+mov bx, 0
+
+mov ah, 0x02        ; 功能号：读扇区
+mov al, 4           ; 读4个扇区 (2KB，足够放loader了)
+mov ch, 0           ; 柱面0
+mov cl, 2           ; 扇区2 (第1个扇区是bootsect自己)
+mov dh, 0           ; 磁头0
+mov dl, 0x80        ; 驱动器号 (0x80 = 第一个硬盘)
+
+int 0x13            ; 调用BIOS磁盘中断
+jc disk_error       ; 如果出错，CF标志位会被置1
+
+; ====== 跳转到第二阶段Loader ======
+mov si, jump_msg
+call print_string
+
+jmp 0x1000:0x0000   ; 远跳转，跳到loader
+
+; ==========================================
+; 错误处理
+; ==========================================
+
+disk_error:
+    mov si, disk_err_msg
+    call print_string
+    jmp $
 
 ; ==========================================
 ; 函数：print_string
-; 功能：打印以0结尾的字符串
-; 输入：si = 字符串首地址
+; 打印以0结尾的字符串
+; 输入：si = 字符串地址
 ; ==========================================
 print_string:
-    mov ah, 0x0e    ; BIOS功能号：TTY方式显示字符
-    mov bh, 0x00    ; 页码
-    mov bl, 0x0f    ; 颜色：白色
+    mov ah, 0x0e
+    mov bh, 0x00
+    mov bl, 0x0f
 
 .repeat:
-    lodsb           ; 加载si指向的字节到al，si自动+1
-    or al, al       ; 判断al是不是0（字符串结束标志）
-    jz .done        ; 如果是0，跳转到结束
-    int 0x10        ; 调用BIOS中断显示字符
-    jmp .repeat     ; 继续下一个字符
+    lodsb
+    or al, al
+    jz .done
+    int 0x10
+    jmp .repeat
 
 .done:
-    ret             ; 返回
+    ret
 
 ; ==========================================
 ; 数据区
 ; ==========================================
 
-boot_msg db 'Hello, My Mini OS!', 0x0d, 0x0a, 0x0d, 0x0a, 0
-hint_msg db 'This is my first operating system!', 0x0d, 0x0a, 0
+boot_msg     db '[Boot] My Mini OS is starting...', 0x0d, 0x0a, 0
+disk_err_msg db '[Error] Disk read failed!', 0x0d, 0x0a, 0
+jump_msg     db '[Boot] Jumping to loader...', 0x0d, 0x0a, 0x0d, 0x0a, 0
 
 ; ==========================================
-; 填充剩余空间，确保刚好512字节
-; 最后两个字节必须是 0xaa55（引导扇区标志）
-; BIOS检查到这个标志才会认为这是可引导的
+; 填充到512字节，引导扇区魔数
 ; ==========================================
 
-; $ 表示当前行地址，$$ 表示本节起始地址
-; 510 - ($ - $$) 计算需要填充多少字节
 times 510 - ($ - $$) db 0
-
-; 引导扇区魔数：0xaa55
-; 注意：x86是小端序，所以写的时候是 0x55 在前，0xaa 在后
 dw 0xaa55
