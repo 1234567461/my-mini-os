@@ -5,7 +5,6 @@
  *   2. 初始化各个子系统
  *   3. 启动Shell和测试进程
  * ========================================== */
-
 #include "vga.h"
 #include "idt.h"
 #include "pic.h"
@@ -15,11 +14,15 @@
 #include "memory.h"
 #include "paging.h"
 #include "heap.h"
-#include "process.h"
 #include "syscall.h"
-#include "fs.h"
 #include "shell.h"
 #include "types.h"
+#include "task.h"
+#include "klog.h"
+#include "vfs.h"
+#include "ramfs.h"
+#include "user.h"
+#include "system.h"
 
 /* ==========================================
  * 外部函数声明
@@ -40,7 +43,7 @@ static void test_process1(void)
         for (int i = 0; i < 1000000; i++) {
             asm volatile ("nop");
         }
-        process_yield();
+        task_yield();
     }
 }
 
@@ -57,7 +60,7 @@ static void test_process2(void)
         for (int i = 0; i < 1000000; i++) {
             asm volatile ("nop");
         }
-        process_yield();
+        task_yield();
     }
 }
 
@@ -72,7 +75,7 @@ static void test_process3(void)
         for (int i = 0; i < 500000; i++) {
             asm volatile ("nop");
         }
-        process_yield();
+        task_yield();
     }
 }
 
@@ -84,6 +87,11 @@ void kernel_main(void)
 {
     /* 初始化VGA */
     vga_init();
+
+    /* 初始化内核日志系统（最早初始化） */
+    klog_init();
+    klog_log("boot", "My Mini OS v0.5.0 starting up...");
+    klog_log("boot", "Kernel loaded at 0x20000");
 
     /* 显示标题 */
     vga_set_color(VGA_COLOR_LIGHT_GREEN, VGA_COLOR_BLACK);
@@ -98,80 +106,107 @@ void kernel_main(void)
 
     /* 显示系统信息 */
     vga_set_color(VGA_COLOR_LIGHT_CYAN, VGA_COLOR_BLACK);
-    vga_puts("My Mini OS v0.3.0 (Phase 3)\n");
+    vga_puts("My Mini OS v0.5.0\n");
     vga_set_color(VGA_COLOR_WHITE, VGA_COLOR_BLACK);
     vga_puts("32-bit Protected Mode Kernel\n");
+    vga_puts("Memory: 128MB physical, 4MB large page support\n");
+    vga_putc('\n');
+
+    /* 初始化内存管理 */
+    vga_puts("Initializing memory management...\n");
+    klog_log("mem", "Initializing memory management subsystem");
+
+    /* 初始化物理内存管理器 */
+    pmm_init();
+    vga_puts("  [✓] Physical Memory Manager (bitmap)\n");
+    klog_log("mem", "PMM initialized: 128MB physical memory, 32768 pages");
+
+    /* 初始化分页机制 */
+    paging_init();
+    vga_puts("  [✓] Paging (4GB virtual address space, 4MB large pages)\n");
+    klog_log("mem", "Paging initialized: 4GB virtual address space");
+    klog_log("mem", "Kernel space: 0x00000000 - 0x003FFFFF (4MB)");
+    klog_log("mem", "User space:   0x00400000 - 0x07FFFFFF (124MB)");
+
+    /* 初始化堆内存分配器 */
+    heap_init();
+    vga_puts("  [✓] Heap Allocator (kmalloc/kfree)\n");
+    klog_log("mem", "Heap allocator initialized (First Fit algorithm)");
+
+    /* 初始化进程调度器 */
+    task_init();
+    vga_puts("  [✓] Task Scheduler (Round Robin)\n");
+    klog_log("task", "Task scheduler initialized (Round Robin, 64 tasks max)");
+    klog_log("task", "Idle task created (PID 0)");
+
+    /* 初始化文件系统 */
+    vga_puts("  [✓] Virtual File System (VFS)\n");
+    klog_log("fs", "Initializing virtual file system");
+    vfs_init();
+    
+    vfs_filesystem_t *ramfs = ramfs_init();
+    if (ramfs != NULL) {
+        vfs_mount_root(ramfs);
+        vga_puts("  [✓] RAM File System (ramfs) mounted as root\n");
+        klog_log("fs", "RAM filesystem mounted as root filesystem");
+    }
+
     vga_putc('\n');
 
     /* 初始化中断系统 */
     vga_puts("Initializing interrupt system...\n");
+    klog_log("int", "Initializing interrupt subsystem");
 
     /* 初始化IDT */
     idt_init();
-    vga_puts("  [OK] IDT (Interrupt Descriptor Table)\n");
+    vga_puts("  [✓] IDT (Interrupt Descriptor Table)\n");
+    klog_log("int", "IDT initialized (256 entries)");
 
     /* 初始化PIC */
     pic_init();
-    vga_puts("  [OK] PIC (Programmable Interrupt Controller)\n");
+    vga_puts("  [✓] PIC (Programmable Interrupt Controller)\n");
+    klog_log("int", "PIC initialized (master at 0x20, slave at 0xA0)");
 
     /* 初始化ISR和IRQ */
     isr_init();
-    vga_puts("  [OK] ISR (Interrupt Service Routines)\n");
-    vga_puts("  [OK] IRQ (Hardware Interrupts)\n");
+    vga_puts("  [✓] ISR (Interrupt Service Routines)\n");
+    vga_puts("  [✓] IRQ (Hardware Interrupts)\n");
+    klog_log("int", "ISR handlers registered (0-31 CPU exceptions)");
+    klog_log("int", "IRQ handlers registered (32-47 hardware interrupts)");
 
     /* 初始化时钟 */
     pit_init(100);  /* 100Hz */
-    vga_puts("  [OK] PIT (Programmable Interval Timer) - 100Hz\n");
+    vga_puts("  [✓] PIT (Programmable Interval Timer) - 100Hz\n");
+    klog_log("int", "PIT initialized: 100Hz system timer");
 
     /* 初始化键盘 */
     keyboard_init();
-    vga_puts("  [OK] PS/2 Keyboard Driver\n");
-
-    /* 初始化内存管理 */
-    vga_puts("Initializing memory management...\n");
-    pmm_init();
-    vga_puts("  [OK] Physical Memory Manager (bitmap)\n");
-
-    /* 初始化分页 */
-    paging_init();
-    vga_puts("  [OK] Paging (virtual memory)\n");
-
-    /* 初始化堆内存分配器 */
-    heap_init();
-    vga_puts("  [OK] Heap Memory Allocator (malloc/free)\n");
-
-    /* 初始化进程管理 */
-    process_init();
-    vga_puts("  [OK] Process Manager (scheduler + context switch)\n");
-
-    /* 初始化系统调用 */
-    syscall_init();
-    vga_puts("  [OK] System Call Interface (int 0x80)\n");
-
-    /* 初始化文件系统 */
-    fs_init();
-    vga_puts("  [OK] Virtual File System (ramfs)\n");
+    vga_puts("  [✓] PS/2 Keyboard Driver\n");
+    klog_log("drv", "PS/2 keyboard driver initialized");
 
     /* 开中断 */
     sti();
-    vga_puts("  [OK] Interrupts enabled\n");
+    vga_puts("  [✓] Interrupts enabled\n");
+    klog_log("int", "Interrupts enabled (IF flag set)");
 
     vga_putc('\n');
+
     vga_set_color(VGA_COLOR_LIGHT_GREEN, VGA_COLOR_BLACK);
     vga_puts("All systems initialized successfully!\n");
     vga_set_color(VGA_COLOR_WHITE, VGA_COLOR_BLACK);
-    vga_putc('\n');
+    klog_log("boot", "All systems initialized successfully");
+    klog_log("boot", "Starting user shell...");
 
     /* ==========================================
      * 创建测试进程
      * ========================================== */
     vga_puts("Creating test processes...\n");
 
-    process_create("counter1", test_process1, 1);
-    process_create("counter2", test_process2, 1);
-    process_create("timer", test_process3, 1);
+    task_create("counter1", test_process1, 1);
+    task_create("counter2", test_process2, 1);
+    task_create("timer", test_process3, 1);
 
-    vga_printf("Total processes: %d\n\n", process_get_ready_count());
+    vga_printf("Total processes: %d\n\n", get_task_count());
 
     vga_set_color(VGA_COLOR_YELLOW, VGA_COLOR_BLACK);
     vga_puts("Starting scheduler... (watch the processes run!)\n");
@@ -188,6 +223,7 @@ void kernel_main(void)
     shell_start();
 
     /* 不应该到这里 */
+    klog_log("boot", "WARNING: Shell returned, halting");
     while (1) {
         hlt();
     }

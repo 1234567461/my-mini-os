@@ -76,6 +76,21 @@ char *strchr(const char *str, char c) {
     return NULL;
 }
 
+/* 从后向前查找字符 */
+char *strrchr(const char *str, char c) {
+    const char *last = NULL;
+    while (*str) {
+        if (*str == c) {
+            last = str;
+        }
+        str++;
+    }
+    if (c == '\0') {
+        return (char *)str;
+    }
+    return (char *)last;
+}
+
 /* 字符串转整数 */
 int atoi(const char *str) {
     int result = 0;
@@ -158,8 +173,9 @@ char *itoa(int value, char *str, int base) {
  * ========================================== */
 void *memset(void *ptr, int value, size_t num) {
     unsigned char *p = (unsigned char *)ptr;
-    while (num--) {
-        *p++ = (unsigned char)value;
+    unsigned char v = (unsigned char)value;
+    for (size_t i = 0; i < num; i++) {
+        p[i] = v;
     }
     return ptr;
 }
@@ -167,13 +183,13 @@ void *memset(void *ptr, int value, size_t num) {
 /* ==========================================
  * 内存复制
  * ========================================== */
-void *memcpy(void *dest, const void *src, size_t num) {
-    unsigned char *d = (unsigned char *)dest;
+void *memcpy(void *dst, const void *src, size_t num) {
+    unsigned char *d = (unsigned char *)dst;
     const unsigned char *s = (const unsigned char *)src;
-    while (num--) {
-        *d++ = *s++;
+    for (size_t i = 0; i < num; i++) {
+        d[i] = s[i];
     }
-    return dest;
+    return dst;
 }
 
 /* ==========================================
@@ -182,12 +198,10 @@ void *memcpy(void *dest, const void *src, size_t num) {
 int memcmp(const void *ptr1, const void *ptr2, size_t num) {
     const unsigned char *p1 = (const unsigned char *)ptr1;
     const unsigned char *p2 = (const unsigned char *)ptr2;
-    while (num--) {
-        if (*p1 != *p2) {
-            return *p1 - *p2;
+    for (size_t i = 0; i < num; i++) {
+        if (p1[i] != p2[i]) {
+            return p1[i] - p2[i];
         }
-        p1++;
-        p2++;
     }
     return 0;
 }

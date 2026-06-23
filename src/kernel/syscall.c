@@ -1,182 +1,173 @@
 /* ==========================================
  * 系统调用实现 - syscall.c
  * 功能：
- *   1. 系统调用初始化（注册中断0x80）
- *   2. 系统调用分发处理
- *   3. 具体系统调用实现
+ *   1. 系统调用中断处理（int 0x80）
+ *   2. 系统调用分发
+ *   3. 基础系统调用实现
  * ========================================== */
+
 #include "syscall.h"
 #include "isr.h"
-#include "process.h"
-#include "heap.h"
+#include "idt.h"
+#include "task.h"
 #include "vga.h"
-#include "keyboard.h"
-#include "fs.h"
+#include "vfs.h"
 #include "string.h"
 #include "types.h"
 
+/* 系统调用函数指针类型 */
+typedef int (*syscall_func_t)(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t);
+
+/* 系统调用表 */
+static syscall_func_t syscall_table[MAX_SYSCALLS];
+
 /* ==========================================
- * 内部函数声明
+ * 函数：sys_exit
+ * 功能：退出当前进程
  * ========================================== */
-static void syscall_isr_handler(isr_regs_t *regs);
+static int sys_exit(uint32_t status, uint32_t arg2, uint32_t arg3, uint32_t arg4, uint32_t arg5)
+{
+    (void)arg2;
+    (void)arg3;
+    (void)arg4;
+    (void)arg5;
+    
+    task_exit(status);
+    return 0;  /* 不会到达这里 */
+}
 
 /* ==========================================
  * 函数：sys_write
- * 功能：写输出（简化版，直接写VGA）
+ * 功能：写入文件/设备
+ * 参数：
+ *   fd - 文件描述符（0=stdin, 1=stdout, 2=stderr, 其他=文件）
+ *   buf - 缓冲区
+ *   count - 写入字节数
+ * 返回：实际写入的字节数
  * ========================================== */
-static int sys_write_impl(int fd, const char *buf, int len)
+static int sys_write(uint32_t fd, uint32_t buf, uint32_t count, uint32_t arg4, uint32_t arg5)
 {
-    if (buf == NULL || len <= 0) {
-        return 0;
-    }
-
-    /* fd=1 是标准输出，直接写屏幕 */
+    (void)arg4;
+    (void)arg5;
+    
+    const char *buffer = (const char *)buf;
+    
+    /* 标准输出和标准错误输出到 VGA */
     if (fd == 1 || fd == 2) {
-        for (int i = 0; i < len; i++) {
-            vga_putc(buf[i]);
+        for (size_t i = 0; i < count; i++) {
+            vga_putc(buffer[i]);
         }
-        return len;
+        return count;
     }
-
-    /* 其他fd写文件 */
-    return fs_write(fd, buf, len);
+    
+    /* 其他文件描述符暂时不支持 */
+    return -1;
 }
 
 /* ==========================================
  * 函数：sys_read
- * 功能：读输入（简化版，从键盘读）
+ * 功能：读取文件/设备（暂时未实现）
  * ========================================== */
-static int sys_read_impl(int fd, char *buf, int len)
+static int sys_read(uint32_t fd, uint32_t buf, uint32_t count, uint32_t arg4, uint32_t arg5)
 {
-    if (buf == NULL || len <= 0) {
-        return 0;
-    }
-
-    /* fd=0 是标准输入，从键盘读 */
-    if (fd == 0) {
-        int i = 0;
-        while (i < len - 1) {
-            char c = keyboard_getc();
-            if (c == '\n' || c == '\r') {
-                break;
-            }
-            if (c == '\b' && i > 0) {
-                i--;
-                vga_putc('\b');
-                continue;
-            }
-            buf[i++] = c;
-            vga_putc(c);
-        }
-        buf[i] = '\0';
-        return i;
-    }
-
-    /* 其他fd读文件 */
-    return fs_read(fd, buf, len);
+    (void)fd;
+    (void)buf;
+    (void)count;
+    (void)arg4;
+    (void)arg5;
+    
+    /* 暂时未实现 */
+    return -1;
 }
 
 /* ==========================================
- * 函数：sys_exit
- * 功能：进程退出
+ * 函数：sys_open
+ * 功能：打开文件（暂时未实现）
  * ========================================== */
-static void sys_exit_impl(int status)
+static int sys_open(uint32_t pathname, uint32_t flags, uint32_t arg3, uint32_t arg4, uint32_t arg5)
 {
-    (void)status;  /* 暂时忽略退出状态 */
-    process_exit(status);
+    (void)pathname;
+    (void)flags;
+    (void)arg3;
+    (void)arg4;
+    (void)arg5;
+    
+    /* 暂时未实现 */
+    return -1;
 }
 
 /* ==========================================
- * 函数：sys_yield
- * 功能：让出CPU
+ * 函数：sys_close
+ * 功能：关闭文件（暂时未实现）
  * ========================================== */
-static void sys_yield_impl(void)
+static int sys_close(uint32_t fd, uint32_t arg2, uint32_t arg3, uint32_t arg4, uint32_t arg5)
 {
-    process_yield();
+    (void)fd;
+    (void)arg2;
+    (void)arg3;
+    (void)arg4;
+    (void)arg5;
+    
+    /* 暂时未实现 */
+    return -1;
 }
 
 /* ==========================================
  * 函数：sys_getpid
  * 功能：获取当前进程ID
  * ========================================== */
-static int sys_getpid_impl(void)
+static int sys_getpid(uint32_t arg1, uint32_t arg2, uint32_t arg3, uint32_t arg4, uint32_t arg5)
 {
-    process_t *curr = process_get_current();
-    if (curr == NULL) {
-        return -1;
+    (void)arg1;
+    (void)arg2;
+    (void)arg3;
+    (void)arg4;
+    (void)arg5;
+    
+    task_t *current = get_current_task();
+    if (current != NULL) {
+        return current->pid;
     }
-    return curr->pid;
+    return -1;
 }
 
 /* ==========================================
- * 函数：sys_sbrk
- * 功能：调整堆大小（简化版，用kmalloc代替）
+ * 函数：sys_brk
+ * 功能：调整用户堆大小（暂时未实现）
  * ========================================== */
-static void *sys_sbrk_impl(int increment)
+static int sys_brk(uint32_t addr, uint32_t arg2, uint32_t arg3, uint32_t arg4, uint32_t arg5)
 {
-    if (increment <= 0) {
-        return NULL;
-    }
-    return kmalloc(increment);
+    (void)addr;
+    (void)arg2;
+    (void)arg3;
+    (void)arg4;
+    (void)arg5;
+    
+    /* 暂时未实现 */
+    return -1;
 }
 
 /* ==========================================
- * 函数：syscall_isr_handler
+ * 函数：syscall_handler
  * 功能：系统调用中断处理函数
- * 参数：
- *   regs - 寄存器状态
  * 说明：
- *   eax = 系统调用号
- *   ebx = 参数1
- *   ecx = 参数2
- *   edx = 参数3
- *   返回值放在eax中
+ *   从寄存器中读取系统调用号和参数
+ *   调用对应的系统调用处理函数
+ *   返回值放在 eax 中
  * ========================================== */
-static void syscall_isr_handler(isr_regs_t *regs)
+void syscall_handler(isr_regs_t *regs)
 {
     uint32_t syscall_num = regs->eax;
-    uint32_t ret = 0;
-
-    switch (syscall_num) {
-        case SYS_WRITE:
-            ret = (uint32_t)sys_write_impl(
-                (int)regs->ebx,
-                (const char *)regs->ecx,
-                (int)regs->edx
-            );
-            break;
-
-        case SYS_READ:
-            ret = (uint32_t)sys_read_impl(
-                (int)regs->ebx,
-                (char *)regs->ecx,
-                (int)regs->edx
-            );
-            break;
-
-        case SYS_EXIT:
-            sys_exit_impl((int)regs->ebx);
-            break;
-
-        case SYS_YIELD:
-            sys_yield_impl();
-            break;
-
-        case SYS_GETPID:
-            ret = (uint32_t)sys_getpid_impl();
-            break;
-
-        case SYS_SBRK:
-            ret = (uint32_t)sys_sbrk_impl((int)regs->ebx);
-            break;
-
-        default:
-            vga_printf("Unknown syscall: %d\n", syscall_num);
-            break;
+    
+    /* 检查系统调用号是否有效 */
+    if (syscall_num >= MAX_SYSCALLS || syscall_table[syscall_num] == NULL) {
+        regs->eax = -1;  /* 无效的系统调用号 */
+        return;
     }
-
-    /* 返回值放在eax中 */
-    regs->eax = ret;
+    
+    /* 调用对应的系统调用处理函数 */
+    syscall_func_t func = syscall_table[syscall_num];
+    regs->eax = func(regs->ebx, regs->ecx, regs->edx, regs->esi, regs->edi);
 }
 
 /* ==========================================
@@ -185,10 +176,18 @@ static void syscall_isr_handler(isr_regs_t *regs)
  * ========================================== */
 void syscall_init(void)
 {
-    vga_puts("Initializing system call interface...\n");
-
-    /* 注册中断0x80的处理函数 */
-    isr_register_handler(0x80, syscall_isr_handler);
-
-    vga_puts("  [✓] Syscall interface (int 0x80)\n");
+    /* 清空系统调用表 */
+    memset(syscall_table, 0, sizeof(syscall_table));
+    
+    /* 注册系统调用处理函数 */
+    syscall_table[SYS_EXIT] = (syscall_func_t)sys_exit;
+    syscall_table[SYS_WRITE] = (syscall_func_t)sys_write;
+    syscall_table[SYS_READ] = (syscall_func_t)sys_read;
+    syscall_table[SYS_OPEN] = (syscall_func_t)sys_open;
+    syscall_table[SYS_CLOSE] = (syscall_func_t)sys_close;
+    syscall_table[SYS_GETPID] = (syscall_func_t)sys_getpid;
+    syscall_table[SYS_BRK] = (syscall_func_t)sys_brk;
+    
+    /* 注册中断处理程序（ISR 0x80） */
+    isr_register_handler(0x80, syscall_handler);
 }

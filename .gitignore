@@ -1,0 +1,21 @@
+# Build output
+build/
+*.o
+*.bin
+*.elf
+*.img
+
+# Editor files
+*.swp
+*.swo
+*~
+.vscode/
+.idea/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Temporary files
+*.tmp
+*.temp

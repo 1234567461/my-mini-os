@@ -23,6 +23,7 @@ int strncmp(const char *s1, const char *s2, size_t n);
 
 /* 字符查找 */
 char *strchr(const char *str, char c);
+char *strrchr(const char *str, char c);
 
 /* 字符串转数字 */
 int atoi(const char *str);
@@ -32,7 +33,7 @@ char *itoa(int value, char *str, int base);
 
 /* 内存操作 */
 void *memset(void *ptr, int value, size_t num);
-void *memcpy(void *dest, const void *src, size_t num);
+void *memcpy(void *dst, const void *src, size_t num);
 int memcmp(const void *ptr1, const void *ptr2, size_t num);
 
 #endif /* STRING_H */
