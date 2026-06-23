@@ -1,14 +1,15 @@
 /* ==========================================
- * 进程管理 - task.h
- * 功能：
- *   1. 进程控制块（PCB）
- *   2. 进程调度
- *   3. 上下文切换
+ * 进程管理 - task.h v0.4.0
+ * 功能增强：
+ *   1. 每个进程独立的页目录（地址空间隔离）
+ *   2. 用户栈和用户堆
+ *   3. 内核/用户空间分离
  * ========================================== */
 #ifndef TASK_H
 #define TASK_H
 
 #include "types.h"
+#include "paging.h"
 
 /* 进程状态 */
 typedef enum {
@@ -36,6 +37,16 @@ typedef struct {
     uint32_t ss;
 } task_context_t;
 
+/* 用户内存空间信息 */
+typedef struct {
+    uint32_t code_start;    /* 代码段起始 */
+    uint32_t code_size;     /* 代码段大小 */
+    uint32_t heap_start;    /* 用户堆起始 */
+    uint32_t heap_brk;      /* 用户堆当前边界 */
+    uint32_t stack_start;   /* 用户栈起始（高地址） */
+    uint32_t stack_size;    /* 用户栈大小 */
+} user_space_t;
+
 /* 进程控制块（PCB） */
 typedef struct task_struct {
     uint32_t pid;                    /* 进程ID */
@@ -44,8 +55,13 @@ typedef struct task_struct {
     uint32_t priority;               /* 优先级 */
     uint32_t time_slice;             /* 时间片 */
     uint32_t remaining_time;         /* 剩余时间片 */
-    uint32_t *stack;                 /* 栈底指针 */
-    uint32_t stack_size;             /* 栈大小 */
+    
+    uint32_t *kernel_stack;          /* 内核栈底指针 */
+    uint32_t kernel_stack_size;      /* 内核栈大小 */
+    
+    page_directory_t *page_dir;      /* 进程页目录（地址空间） */
+    user_space_t user_space;         /* 用户空间信息 */
+    
     task_context_t context;          /* 寄存器上下文 */
     struct task_struct *next;        /* 链表指针 */
 } task_t;
@@ -59,6 +75,9 @@ void task_init();
 
 /* 创建新进程 */
 int task_create(const char *name, void (*entry)(), uint32_t priority);
+
+/* 创建用户进程（带独立地址空间） */
+int task_create_user(const char *name, void (*entry)(), uint32_t priority);
 
 /* 进程调度（时间片轮转） */
 void schedule();
@@ -83,5 +102,8 @@ uint32_t get_task_count();
 
 /* 退出当前进程 */
 void task_exit();
+
+/* 切换进程地址空间 */
+void switch_task_address_space(task_t *task);
 
 #endif /* TASK_H */

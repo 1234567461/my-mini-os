@@ -19,6 +19,7 @@ typedef signed long long int64_t;
 
 /* 大小类型 */
 typedef uint32_t        size_t;
+typedef int32_t         ssize_t;
 
 /* 布尔类型 */
 typedef uint8_t         bool;

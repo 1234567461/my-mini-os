@@ -14,6 +14,8 @@
 #include "memory.h"
 #include "heap.h"
 #include "task.h"
+#include "system.h"
+#include "klog.h"
 
 /* 命令缓冲区大小 */
 #define CMD_BUF_SIZE 128
@@ -37,7 +39,8 @@ static const char *help_text =
     "  hostname - Show system hostname\n"
     "  whoami   - Show current user\n"
     "  calc     - Simple calculator (calc <num1> <op> <num2>)\n"
-    "  reboot   - Reboot (not implemented yet)\n";
+    "  dmesg    - Show kernel boot log\n"
+    "  reboot   - Reboot the system\n";
 
 /* ==========================================
  * 函数：cmd_help
@@ -122,8 +125,10 @@ static void cmd_version(void)
     vga_set_color(VGA_COLOR_LIGHT_CYAN, VGA_COLOR_BLACK);
     vga_puts("My Mini OS ");
     vga_set_color(VGA_COLOR_WHITE, VGA_COLOR_BLACK);
-    vga_puts("v0.3.0\n");
+    vga_puts("v0.4.0\n");
     vga_puts("Kernel: 32-bit protected mode\n");
+    vga_puts("Memory: 128MB physical, 4MB large page support\n");
+    vga_puts("Features: memory isolation, per-process address space\n");
     vga_puts("Build: Learning Edition\n");
 }
 
@@ -368,6 +373,47 @@ static void cmd_calc(const char *args)
 }
 
 /* ==========================================
+ * 函数：cmd_dmesg
+ * 功能：显示内核启动日志
+ * ========================================== */
+static void cmd_dmesg(void)
+{
+    char log_buf[2048];
+    int len = klog_read(log_buf, sizeof(log_buf) - 1);
+    log_buf[len] = '\0';
+
+    vga_set_color(VGA_COLOR_LIGHT_CYAN, VGA_COLOR_BLACK);
+    vga_puts("Kernel Boot Log (dmesg)\n");
+    vga_set_color(VGA_COLOR_WHITE, VGA_COLOR_BLACK);
+    vga_puts("========================\n\n");
+
+    if (len == 0) {
+        vga_puts("(no kernel messages yet)\n");
+    } else {
+        vga_puts(log_buf);
+    }
+}
+
+/* ==========================================
+ * 函数：cmd_reboot
+ * 功能：重启系统
+ * ========================================== */
+static void cmd_reboot(void)
+{
+    vga_set_color(VGA_COLOR_LIGHT_RED, VGA_COLOR_BLACK);
+    vga_puts("Rebooting system...\n");
+    vga_set_color(VGA_COLOR_WHITE, VGA_COLOR_BLACK);
+
+    /* 等待一下让用户看到消息 */
+    for (volatile int i = 0; i < 1000000; i++) {
+        asm volatile ("nop");
+    }
+
+    /* 执行重启 */
+    system_reboot();
+}
+
+/* ==========================================
  * 函数：execute_command
  * 功能：执行一条命令
  * ========================================== */
@@ -428,8 +474,10 @@ static void execute_command(const char *cmd)
         cmd_whoami();
     } else if (strcmp(cmd_name, "calc") == 0) {
         cmd_calc(args);
+    } else if (strcmp(cmd_name, "dmesg") == 0) {
+        cmd_dmesg();
     } else if (strcmp(cmd_name, "reboot") == 0) {
-        vga_puts("Reboot not implemented yet. Press Ctrl+Alt+Del in QEMU.\n");
+        cmd_reboot();
     } else {
         vga_set_color(VGA_COLOR_LIGHT_RED, VGA_COLOR_BLACK);
         vga_printf("Command not found: %s\n", cmd_name);
