@@ -61,7 +61,7 @@ static void idle_task_entry() {
  * 进程退出包装
  * ========================================== */
 static void task_exit_wrapper() {
-    task_exit();
+    task_exit(0);  /* 默认退出状态为 0 */
 }
 
 /* ==========================================
@@ -144,6 +144,10 @@ int task_create(const char *name, void (*entry)(), uint32_t priority) {
     task->priority = priority;
     task->time_slice = DEFAULT_TIME_SLICE + priority * 5;  /* 优先级高的时间片长 */
     task->remaining_time = task->time_slice;
+    
+    /* 设置父进程 ID */
+    task->ppid = current_task ? current_task->pid : 0;
+    task->exit_status = 0;
 
     /* 分配内核栈 */
     task->kernel_stack_size = DEFAULT_KERNEL_STACK_SIZE;
@@ -221,6 +225,10 @@ int task_create_user(const char *name, void (*entry)(), uint32_t priority) {
     task->priority = priority;
     task->time_slice = DEFAULT_TIME_SLICE + priority * 5;
     task->remaining_time = task->time_slice;
+    
+    /* 设置父进程 ID */
+    task->ppid = current_task ? current_task->pid : 0;
+    task->exit_status = 0;
 
     /* 分配内核栈 */
     task->kernel_stack_size = DEFAULT_KERNEL_STACK_SIZE;
@@ -457,13 +465,20 @@ uint32_t get_task_count() {
 /* ==========================================
  * 退出当前进程
  * ========================================== */
-void task_exit() {
+void task_exit(int status) {
     if (current_task == NULL || current_task == idle_task) {
         return;
     }
 
-    /* 设置为僵尸状态 */
+    /* 设置退出状态 */
+    current_task->exit_status = status;
+
+    /* 设置为僵尸状态（等待父进程收集） */
     current_task->state = TASK_ZOMBIE;
+
+    /* 注意：暂时不释放资源，等待父进程 waitpid 收集
+     * 简化处理：先释放大部分资源，只保留 PCB 和退出状态
+     */
 
     /* 释放内核栈 */
     if (current_task->kernel_stack != NULL) {

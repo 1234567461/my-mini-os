@@ -50,11 +50,14 @@ typedef struct {
 /* 进程控制块（PCB） */
 typedef struct task_struct {
     uint32_t pid;                    /* 进程ID */
+    uint32_t ppid;                   /* 父进程ID */
     char name[32];                   /* 进程名 */
     task_state_t state;              /* 进程状态 */
     uint32_t priority;               /* 优先级 */
     uint32_t time_slice;             /* 时间片 */
     uint32_t remaining_time;         /* 剩余时间片 */
+    
+    int exit_status;                 /* 退出状态码 */
     
     uint32_t *kernel_stack;          /* 内核栈底指针 */
     uint32_t kernel_stack_size;      /* 内核栈大小 */
@@ -101,7 +104,10 @@ task_t *get_task_list();
 uint32_t get_task_count();
 
 /* 退出当前进程 */
-void task_exit();
+void task_exit(int status);
+
+/* 等待子进程退出 */
+int task_waitpid(uint32_t pid, int *status);
 
 /* 切换进程地址空间 */
 void switch_task_address_space(task_t *task);
