@@ -32,6 +32,13 @@ void load_page_directory(uint32_t *page_dir) {
 }
 
 /* ==========================================
+ * 获取内核页目录
+ * ========================================== */
+uint32_t *get_kernel_page_dir() {
+    return page_directory;
+}
+
+/* ==========================================
  * 启用分页（设置CR0的PG位）
  * ========================================== */
 void enable_paging() {
@@ -72,6 +79,14 @@ int map_page(uint32_t virtual_addr, uint32_t physical_addr, uint32_t flags) {
     } else {
         /* 页表已存在，获取其地址 */
         page_table = (uint32_t *)(pde & 0xFFFFF000);
+    }
+
+    /* 如果物理地址为0，自动分配一个物理页 */
+    if (physical_addr == 0) {
+        physical_addr = (uint32_t)pmm_alloc_page();
+        if (physical_addr == 0) {
+            return -1;  /* 内存不足 */
+        }
     }
 
     /* 设置页表项 */

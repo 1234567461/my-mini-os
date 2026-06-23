@@ -5,6 +5,7 @@
 #include "pit.h"
 #include "isr.h"
 #include "pic.h"
+#include "process.h"
 #include "types.h"
 
 /* 系统滴答计数器 */
@@ -19,6 +20,9 @@ static uint32_t current_frequency = PIT_DEFAULT_HZ;
 static void pit_handler(isr_regs_t *regs) {
     (void)regs;  /* 未使用的参数 */
     tick_count++;
+
+    /* 驱动进程调度 */
+    process_tick();
 }
 
 /* ==========================================

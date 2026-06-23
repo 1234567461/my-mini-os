@@ -29,7 +29,7 @@ mov dh, 0           ; 磁头号
 mov dl, 0x80        ; 驱动器号
 mov ch, 0           ; 柱面号
 mov cl, 6           ; 起始扇区号（第6个扇区）
-mov al, 30          ; 读30个扇区（15KB，足够放内核了）
+mov al, 100         ; 读100个扇区（50KB，足够放内核了）
 
 call disk_load
 

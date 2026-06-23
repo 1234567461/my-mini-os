@@ -53,4 +53,7 @@ void enable_paging();
 /* 加载页目录 */
 void load_page_directory(uint32_t *page_dir);
 
+/* 获取内核页目录 */
+uint32_t *get_kernel_page_dir();
+
 #endif /* PAGING_H */

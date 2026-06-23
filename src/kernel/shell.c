@@ -11,6 +11,9 @@
 #include "pit.h"
 #include "string.h"
 #include "types.h"
+#include "fs.h"
+#include "process.h"
+#include "syscall.h"
 
 /* 命令缓冲区大小 */
 #define CMD_BUF_SIZE 128
@@ -28,7 +31,14 @@ static const char *help_text =
     "  color    - Change text color (color <fg> <bg>)\n"
     "  date     - Show system ticks\n"
     "  version  - Show OS version\n"
-    "  reboot   - Reboot (not implemented yet)\n";
+    "  reboot   - Reboot (not implemented yet)\n"
+    "  ls       - List files in current directory\n"
+    "  cat      - Show file contents (cat <filename>)\n"
+    "  touch    - Create a new file (touch <filename>)\n"
+    "  rm       - Delete a file (rm <filename>)\n"
+    "  ps       - List running processes\n"
+    "  pid      - Show current process ID\n"
+    "  yield    - Yield CPU to other processes\n";
 
 /* ==========================================
  * 函数：cmd_help
@@ -156,6 +166,138 @@ static void cmd_color(const char *args)
 }
 
 /* ==========================================
+ * 函数：cmd_ls
+ * 功能：列出文件
+ * ========================================== */
+static void cmd_ls(void)
+{
+    char buf[512];
+    fs_listdir("/", buf, sizeof(buf));
+    vga_puts(buf);
+}
+
+/* ==========================================
+ * 函数：cmd_cat
+ * 功能：显示文件内容
+ * ========================================== */
+static void cmd_cat(const char *filename)
+{
+    if (!filename || *filename == '\0') {
+        vga_puts("Usage: cat <filename>\n");
+        return;
+    }
+
+    int fd = fs_open(filename, O_RDONLY);
+    if (fd < 0) {
+        vga_printf("cat: %s: No such file\n", filename);
+        return;
+    }
+
+    char buf[256];
+    int n;
+    while ((n = fs_read(fd, buf, sizeof(buf) - 1)) > 0) {
+        buf[n] = '\0';
+        vga_puts(buf);
+    }
+
+    fs_close(fd);
+}
+
+/* ==========================================
+ * 函数：cmd_touch
+ * 功能：创建文件
+ * ========================================== */
+static void cmd_touch(const char *filename)
+{
+    if (!filename || *filename == '\0') {
+        vga_puts("Usage: touch <filename>\n");
+        return;
+    }
+
+    if (fs_exists(filename)) {
+        vga_printf("touch: %s: File already exists\n", filename);
+        return;
+    }
+
+    int idx = fs_creat(filename);
+    if (idx < 0) {
+        vga_puts("touch: Failed to create file\n");
+        return;
+    }
+
+    vga_printf("Created file: %s\n", filename);
+}
+
+/* ==========================================
+ * 函数：cmd_rm
+ * 功能：删除文件
+ * ========================================== */
+static void cmd_rm(const char *filename)
+{
+    if (!filename || *filename == '\0') {
+        vga_puts("Usage: rm <filename>\n");
+        return;
+    }
+
+    if (fs_unlink(filename) < 0) {
+        vga_printf("rm: %s: No such file\n", filename);
+        return;
+    }
+
+    vga_printf("Removed file: %s\n", filename);
+}
+
+/* ==========================================
+ * 函数：cmd_ps
+ * 功能：列出进程
+ * ========================================== */
+static void cmd_ps(void)
+{
+    process_t *current = process_get_current();
+
+    vga_puts("PID  Name          State\n");
+    vga_puts("---  ------------  -------\n");
+
+    if (current) {
+        const char *state_str = "Unknown";
+        switch (current->state) {
+            case PROCESS_RUNNING:  state_str = "Running"; break;
+            case PROCESS_READY:    state_str = "Ready"; break;
+            case PROCESS_BLOCKED:  state_str = "Blocked"; break;
+            case PROCESS_TERMINATED: state_str = "Terminated"; break;
+        }
+        vga_printf("%3d  %-12s  %s\n", current->pid, current->name, state_str);
+    }
+
+    int ready_count = process_get_ready_count();
+    vga_printf("\nReady processes: %d\n", ready_count);
+}
+
+/* ==========================================
+ * 函数：cmd_pid
+ * 功能：显示当前进程ID
+ * ========================================== */
+static void cmd_pid(void)
+{
+    process_t *current = process_get_current();
+    if (current) {
+        vga_printf("Current PID: %d\n", current->pid);
+    } else {
+        vga_puts("No current process\n");
+    }
+}
+
+/* ==========================================
+ * 函数：cmd_yield
+ * 功能：让出CPU
+ * ========================================== */
+static void cmd_yield(void)
+{
+    process_yield();
+    vga_puts("Yielded CPU\n");
+}
+
+/* ==========================================
  * 函数：execute_command
  * 功能：执行一条命令
  * ========================================== */
@@ -206,6 +348,20 @@ static void execute_command(const char *cmd)
         vga_printf("System ticks: %d\n", pit_get_ticks());
     } else if (strcmp(cmd_name, "reboot") == 0) {
         vga_puts("Reboot not implemented yet. Press Ctrl+Alt+Del in QEMU.\n");
+    } else if (strcmp(cmd_name, "ls") == 0) {
+        cmd_ls();
+    } else if (strcmp(cmd_name, "cat") == 0) {
+        cmd_cat(args);
+    } else if (strcmp(cmd_name, "touch") == 0) {
+        cmd_touch(args);
+    } else if (strcmp(cmd_name, "rm") == 0) {
+        cmd_rm(args);
+    } else if (strcmp(cmd_name, "ps") == 0) {
+        cmd_ps();
+    } else if (strcmp(cmd_name, "pid") == 0) {
+        cmd_pid();
+    } else if (strcmp(cmd_name, "yield") == 0) {
+        cmd_yield();
     } else {
         vga_set_color(VGA_COLOR_LIGHT_RED, VGA_COLOR_BLACK);
         vga_printf("Command not found: %s\n", cmd_name);
