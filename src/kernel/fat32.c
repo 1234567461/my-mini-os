@@ -597,6 +597,85 @@ static int fat32_read(vfs_file_t *file, void *buf, uint32_t count)
 }
 
 /* ==========================================
+ * 辅助函数：扩展文件簇链
+ * 参数：
+ *   first_cluster - 起始簇号
+ *   new_clusters - 需要新增的簇数
+ * 返回：新的起始簇号（如果文件为空），或0表示失败
+ * ========================================== */
+static uint32_t fat32_extend_chain(uint32_t first_cluster, uint32_t new_clusters)
+{
+    if (new_clusters == 0) {
+        return first_cluster;
+    }
+    
+    uint32_t current_cluster = first_cluster;
+    
+    /* 如果文件为空，分配第一个簇 */
+    if (current_cluster == 0) {
+        current_cluster = fat32_alloc_cluster(fat32_fsdata);
+        if (current_cluster == 0) {
+            return 0;
+        }
+        first_cluster = current_cluster;
+        new_clusters--;
+    }
+    
+    /* 找到链表的最后一个簇 */
+    while (1) {
+        uint32_t next = fat32_read_fat_entry(fat32_fsdata, current_cluster);
+        if (next == FAT32_CLUSTER_LAST || next == 0) {
+            break;
+        }
+        current_cluster = next;
+    }
+    
+    /* 追加新簇 */
+    for (uint32_t i = 0; i < new_clusters; i++) {
+        uint32_t new_cluster = fat32_alloc_cluster(fat32_fsdata);
+        if (new_cluster == 0) {
+            /* 分配失败，已经分配的不释放（简化处理） */
+            return 0;
+        }
+        
+        /* 链接到链表末尾 */
+        fat32_write_fat_entry(fat32_fsdata, current_cluster, new_cluster);
+        fat32_write_fat_entry(fat32_fsdata, new_cluster, FAT32_CLUSTER_LAST);
+        current_cluster = new_cluster;
+    }
+    
+    return first_cluster;
+}
+
+/* ==========================================
+ * 辅助函数：更新目录条目（更新文件大小和时间）
+ * ========================================== */
+static int fat32_update_dir_entry(const char *path, uint32_t new_size, uint32_t new_cluster)
+{
+    fat32_dir_entry_t entry;
+    uint32_t entry_index;
+    uint32_t dir_cluster;
+    
+    if (fat32_find_entry(path, &entry, &entry_index, &dir_cluster) < 0) {
+        return -1;
+    }
+    
+    /* 更新文件大小 */
+    entry.file_size = new_size;
+    
+    /* 更新起始簇号 */
+    entry.first_cluster_lo = (uint16_t)(new_cluster & 0xFFFF);
+    entry.first_cluster_hi = (uint16_t)((new_cluster >> 16) & 0xFFFF);
+    
+    /* 更新修改时间和日期（简化：使用固定值） */
+    entry.modify_time = 0;
+    entry.modify_date = 0;
+    
+    /* 写回目录条目 */
+    return fat32_write_dir_entry(dir_cluster, entry_index, &entry);
+}
+
+/* ==========================================
  * VFS 接口：写入文件
  * ========================================== */
 static int fat32_write(vfs_file_t *file, const void *buf, uint32_t count)
@@ -605,11 +684,90 @@ static int fat32_write(vfs_file_t *file, const void *buf, uint32_t count)
         return -1;
     }
     
-    /* 简化版：暂不支持写入 */
-    (void)buf;
-    (void)count;
+    uint32_t first_cluster = *(uint32_t *)file->fs_data;
+    uint32_t bytes_per_cluster = fat32_fsdata->sectors_per_cluster * fat32_fsdata->bytes_per_sector;
     
-    return -1;
+    /* 计算写入后的文件大小 */
+    uint32_t new_size = file->pos + count;
+    
+    /* 计算需要的总簇数 */
+    uint32_t clusters_needed = (new_size + bytes_per_cluster - 1) / bytes_per_cluster;
+    uint32_t current_clusters = (file->size + bytes_per_cluster - 1) / bytes_per_cluster;
+    
+    /* 如果需要更多簇，扩展文件 */
+    if (clusters_needed > current_clusters) {
+        uint32_t new_clusters = clusters_needed - current_clusters;
+        uint32_t new_first = fat32_extend_chain(first_cluster, new_clusters);
+        if (new_first == 0 && first_cluster == 0) {
+            return -1;  /* 空间不足 */
+        }
+        if (new_first != 0) {
+            first_cluster = new_first;
+            *(uint32_t *)file->fs_data = first_cluster;
+        }
+    }
+    
+    const uint8_t *src = (const uint8_t *)buf;
+    uint32_t bytes_written = 0;
+    
+    /* 计算起始簇和偏移 */
+    uint32_t start_cluster_index = file->pos / bytes_per_cluster;
+    uint32_t offset_in_cluster = file->pos % bytes_per_cluster;
+    
+    /* 找到起始簇 */
+    uint32_t current_cluster = first_cluster;
+    for (uint32_t i = 0; i < start_cluster_index; i++) {
+        current_cluster = fat32_read_fat_entry(fat32_fsdata, current_cluster);
+        if (current_cluster == FAT32_CLUSTER_LAST || current_cluster == FAT32_CLUSTER_BAD) {
+            return bytes_written;
+        }
+    }
+    
+    /* 写入数据 */
+    while (bytes_written < count) {
+        uint32_t cluster_start = fat32_cluster_to_sector(fat32_fsdata, current_cluster);
+        uint32_t bytes_in_cluster = bytes_per_cluster - offset_in_cluster;
+        uint32_t to_write = (count - bytes_written) < bytes_in_cluster ? (count - bytes_written) : bytes_in_cluster;
+        
+        /* 写入当前簇 */
+        uint32_t start_sector = cluster_start + offset_in_cluster / fat32_fsdata->bytes_per_sector;
+        uint32_t start_offset = offset_in_cluster % fat32_fsdata->bytes_per_sector;
+        uint32_t sectors_to_write = (to_write + start_offset + fat32_fsdata->bytes_per_sector - 1) / fat32_fsdata->bytes_per_sector;
+        
+        for (uint32_t s = 0; s < sectors_to_write && bytes_written < count; s++) {
+            buffer_t *b = block_get_buffer(fat32_fsdata->dev_id, start_sector + s);
+            if (b == NULL) {
+                break;
+            }
+            
+            uint32_t copy_offset = (s == 0) ? start_offset : 0;
+            uint32_t copy_size = fat32_fsdata->bytes_per_sector - copy_offset;
+            if (copy_size > count - bytes_written) {
+                copy_size = count - bytes_written;
+            }
+            
+            memcpy(b->data + copy_offset, src + bytes_written, copy_size);
+            b->flags |= BUF_DIRTY;
+            bytes_written += copy_size;
+            block_release_buffer(b);
+        }
+        
+        offset_in_cluster = 0;
+        
+        /* 下一个簇 */
+        current_cluster = fat32_read_fat_entry(fat32_fsdata, current_cluster);
+        if (current_cluster == FAT32_CLUSTER_LAST || current_cluster == FAT32_CLUSTER_BAD) {
+            break;
+        }
+    }
+    
+    /* 更新文件位置和大小 */
+    file->pos += bytes_written;
+    if (file->pos > file->size) {
+        file->size = file->pos;
+    }
+    
+    return bytes_written;
 }
 
 /* ==========================================
@@ -617,9 +775,49 @@ static int fat32_write(vfs_file_t *file, const void *buf, uint32_t count)
  * ========================================== */
 static int fat32_create(const char *path)
 {
-    /* 简化版：暂不支持创建 */
-    (void)path;
-    return -1;
+    /* 简化版：只支持根目录下的文件 */
+    if (path[0] != '/' || path[1] == '\0') {
+        return -1;
+    }
+    
+    const char *filename = path + 1;
+    
+    /* 检查文件是否已存在 */
+    fat32_dir_entry_t existing;
+    if (fat32_find_entry(path, &existing, NULL, NULL) == 0) {
+        return -1;  /* 文件已存在 */
+    }
+    
+    /* 转换为 8.3 格式 */
+    uint8_t name83[11];
+    fat32_make_83_name(filename, name83);
+    
+    /* 在根目录中找一个空条目 */
+    uint32_t root_dir = fat32_fsdata->root_cluster;
+    int index = fat32_find_empty_dir_entry(root_dir);
+    if (index < 0) {
+        return -1;  /* 目录已满 */
+    }
+    
+    /* 创建目录条目 */
+    fat32_dir_entry_t entry;
+    memset(&entry, 0, sizeof(entry));
+    memcpy(entry.name, name83, 11);
+    entry.attr = FAT32_ATTR_ARCHIVE;
+    entry.file_size = 0;
+    entry.first_cluster_lo = 0;
+    entry.first_cluster_hi = 0;
+    entry.create_time = 0;
+    entry.create_date = 0;
+    entry.modify_time = 0;
+    entry.modify_date = 0;
+    
+    /* 写入目录条目 */
+    if (fat32_write_dir_entry(root_dir, index, &entry) < 0) {
+        return -1;
+    }
+    
+    return 0;
 }
 
 /* ==========================================
@@ -627,9 +825,30 @@ static int fat32_create(const char *path)
  * ========================================== */
 static int fat32_unlink(const char *path)
 {
-    /* 简化版：暂不支持删除 */
-    (void)path;
-    return -1;
+    fat32_dir_entry_t entry;
+    uint32_t entry_index;
+    uint32_t dir_cluster;
+    
+    if (fat32_find_entry(path, &entry, &entry_index, &dir_cluster) < 0) {
+        return -1;  /* 文件不存在 */
+    }
+    
+    /* 不能删除目录 */
+    if (entry.attr & FAT32_ATTR_DIRECTORY) {
+        return -1;
+    }
+    
+    /* 释放文件数据簇 */
+    uint32_t first_cluster = ((uint32_t)entry.first_cluster_hi << 16) | entry.first_cluster_lo;
+    if (first_cluster != 0) {
+        fat32_free_cluster_chain(fat32_fsdata, first_cluster);
+    }
+    
+    /* 标记目录条目为已删除（第一个字节设为 0xE5） */
+    entry.name[0] = 0xE5;
+    fat32_write_dir_entry(dir_cluster, entry_index, &entry);
+    
+    return 0;
 }
 
 /* ==========================================
@@ -637,9 +856,68 @@ static int fat32_unlink(const char *path)
  * ========================================== */
 static int fat32_mkdir(const char *path)
 {
-    /* 简化版：暂不支持创建目录 */
-    (void)path;
-    return -1;
+    /* 简化版：只支持根目录下创建子目录 */
+    if (path[0] != '/' || path[1] == '\0') {
+        return -1;
+    }
+    
+    const char *dirname = path + 1;
+    
+    /* 检查是否已存在 */
+    fat32_dir_entry_t existing;
+    if (fat32_find_entry(path, &existing, NULL, NULL) == 0) {
+        return -1;  /* 已存在 */
+    }
+    
+    /* 转换为 8.3 格式 */
+    uint8_t name83[11];
+    fat32_make_83_name(dirname, name83);
+    
+    /* 分配一个簇给新目录 */
+    uint32_t dir_cluster = fat32_alloc_cluster(fat32_fsdata);
+    if (dir_cluster == 0) {
+        return -1;  /* 空间不足 */
+    }
+    
+    /* 清空新目录簇 */
+    uint32_t start_sector = fat32_cluster_to_sector(fat32_fsdata, dir_cluster);
+    for (uint32_t s = 0; s < fat32_fsdata->sectors_per_cluster; s++) {
+        buffer_t *buf = block_get_buffer(fat32_fsdata->dev_id, start_sector + s);
+        if (buf != NULL) {
+            memset(buf->data, 0, fat32_fsdata->bytes_per_sector);
+            buf->flags |= BUF_DIRTY;
+            block_release_buffer(buf);
+        }
+    }
+    
+    /* 在根目录中找一个空条目 */
+    uint32_t root_dir = fat32_fsdata->root_cluster;
+    int index = fat32_find_empty_dir_entry(root_dir);
+    if (index < 0) {
+        fat32_free_cluster_chain(fat32_fsdata, dir_cluster);
+        return -1;
+    }
+    
+    /* 创建目录条目 */
+    fat32_dir_entry_t entry;
+    memset(&entry, 0, sizeof(entry));
+    memcpy(entry.name, name83, 11);
+    entry.attr = FAT32_ATTR_DIRECTORY;
+    entry.file_size = 0;
+    entry.first_cluster_lo = (uint16_t)(dir_cluster & 0xFFFF);
+    entry.first_cluster_hi = (uint16_t)((dir_cluster >> 16) & 0xFFFF);
+    entry.create_time = 0;
+    entry.create_date = 0;
+    entry.modify_time = 0;
+    entry.modify_date = 0;
+    
+    /* 写入目录条目 */
+    if (fat32_write_dir_entry(root_dir, index, &entry) < 0) {
+        fat32_free_cluster_chain(fat32_fsdata, dir_cluster);
+        return -1;
+    }
+    
+    return 0;
 }
 
 /* ==========================================
@@ -647,9 +925,67 @@ static int fat32_mkdir(const char *path)
  * ========================================== */
 static int fat32_rmdir(const char *path)
 {
-    /* 简化版：暂不支持删除目录 */
-    (void)path;
-    return -1;
+    fat32_dir_entry_t entry;
+    uint32_t entry_index;
+    uint32_t dir_cluster;
+    
+    if (fat32_find_entry(path, &entry, &entry_index, &dir_cluster) < 0) {
+        return -1;  /* 目录不存在 */
+    }
+    
+    /* 必须是目录 */
+    if (!(entry.attr & FAT32_ATTR_DIRECTORY)) {
+        return -1;
+    }
+    
+    /* 检查目录是否为空（简化：只检查第一个条目） */
+    uint32_t subdir_cluster = ((uint32_t)entry.first_cluster_hi << 16) | entry.first_cluster_lo;
+    fat32_dir_entry_t first_entry;
+    if (fat32_read_dir_entry(subdir_cluster, 0, &first_entry) == 0) {
+        if (first_entry.name[0] != 0x00 && first_entry.name[0] != 0xE5) {
+            /* 检查是否只有 . 和 .. 条目 */
+            bool has_dot = false;
+            bool has_dotdot = false;
+            uint32_t idx = 0;
+            
+            while (1) {
+                fat32_dir_entry_t e;
+                if (fat32_read_dir_entry(subdir_cluster, idx, &e) < 0) {
+                    break;
+                }
+                if (e.name[0] == 0x00) {
+                    break;
+                }
+                if (e.name[0] == 0xE5) {
+                    idx++;
+                    continue;
+                }
+                
+                /* 检查是否是 . 或 .. */
+                if (e.name[0] == '.' && e.name[1] == ' ' && e.name[2] == ' ') {
+                    has_dot = true;
+                } else if (e.name[0] == '.' && e.name[1] == '.' && e.name[2] == ' ') {
+                    has_dotdot = true;
+                } else {
+                    /* 有其他文件，目录不为空 */
+                    return -1;
+                }
+                
+                idx++;
+            }
+        }
+    }
+    
+    /* 释放目录簇 */
+    if (subdir_cluster != 0) {
+        fat32_free_cluster_chain(fat32_fsdata, subdir_cluster);
+    }
+    
+    /* 标记目录条目为已删除 */
+    entry.name[0] = 0xE5;
+    fat32_write_dir_entry(dir_cluster, entry_index, &entry);
+    
+    return 0;
 }
 
 /* ==========================================

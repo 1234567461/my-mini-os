@@ -13,6 +13,7 @@
 #include "types.h"
 #include "paging.h"
 #include "memory.h"
+#include "ipc.h"
 
 /* 最大进程数 */
 #define MAX_TASKS       64
@@ -487,6 +488,9 @@ void task_tick() {
         }
         p = p->next;
     }
+
+    /* 检查并处理待处理信号 */
+    check_pending_signals();
 
     /* 当前进程时间片减1 */
     if (current_task->state == TASK_RUNNING) {

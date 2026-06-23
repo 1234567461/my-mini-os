@@ -128,12 +128,67 @@ src/kernel/
 - **Page sizes**: 4KB (small), 4MB (large)
 - **Interrupts**: IRQ12 (mouse), IRQ8 (RTC)
 
+### Enhanced Features (v0.6.0 Update)
+#### FAT32 File System Enhancements
+- **File write support**: Complete write implementation with cluster chain extension
+- **File creation**: Create new files in root directory
+- **File deletion**: Delete files and free data clusters
+- **Directory creation**: Create subdirectories in root directory
+- **Directory deletion**: Remove empty directories
+- **Helper functions**:
+  - `fat32_extend_chain()` - Extend file cluster chain
+  - `fat32_update_dir_entry()` - Update directory entry metadata
+
+#### System Call Improvements
+- **sys_read**: Implemented standard input reading (fd=0) from keyboard
+- **sys_brk**: Implemented user heap adjustment
+  - Returns current brk when addr=0
+  - Validates address range
+  - Updates heap boundary pointer
+- **sys_fork**: Simplified fork implementation
+  - Creates new kernel process
+  - Shares address space (simplified)
+  - Returns child PID to parent
+
+#### Signal Processing Integration
+- **Scheduler integration**: Signal checking in `task_tick()`
+- **Pending signal processing**: Signals are checked every clock tick
+- **Default signal handlers**: Termination for fatal signals, ignore for others
+
+#### User Space Library
+- **User-mode headers**:
+  - `syscall.h` - System call numbers and macros (syscall0-syscall3)
+  - `unistd.h` - Unix-style function wrappers (exit, fork, read, write, open, close, getpid, sbrk)
+  - `string.h` - String and memory operations (strlen, strcpy, strcmp, memcpy, memset, etc.)
+- **Inline implementations**: All functions as static inline for easy use
+
+#### ELF Loader
+- **ELF32 support**: 32-bit ELF executable format
+- **File validation**: Magic number, class, data encoding, version checks
+- **Program segment loading**: Load PT_LOAD segments into memory
+- **BSS support**: Zero-initialize uninitialized data
+- **Entry point extraction**: Get program entry point address
+
+### New Files Added (Update)
+```
+src/user/include/
+├── syscall.h     # User-mode syscall definitions & macros
+├── unistd.h      # Unix-style function wrappers
+└── string.h      # String & memory operations
+
+src/kernel/include/
+└── elf.h         # ELF file format header
+
+src/kernel/
+└── elf.c         # ELF loader implementation
+```
+
 ### Development Progress
 - [x] v0.1.0 - v0.2.0: Boot sector, real mode basics
 - [x] v0.3.0: 32-bit protected mode, C kernel, basic drivers
 - [x] v0.4.0: Memory isolation, large pages, page faults
 - [x] v0.5.0: User permissions, VFS, ramfs, disk driver, FAT16
-- [x] v0.6.0: IPC, device drivers (serial/RTC/mouse), FAT32, MBR
+- [x] v0.6.0: IPC, device drivers (serial/RTC/mouse), FAT32, MBR, ELF loader, user lib
 - [ ] v0.7.0: Network support
 - [ ] v0.8.0: GUI
 - [ ] v1.0.0: Stable release
