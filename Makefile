@@ -11,7 +11,7 @@ QEMU    = qemu-system-x86_64
 DD      = dd
 
 # 编译选项
-GCC_FLAGS = -m32 -ffreestanding -fno-pie -fno-stack-protector -c
+GCC_FLAGS = -m32 -ffreestanding -fno-pie -fno-stack-protector -c -Isrc/kernel/include
 LD_FLAGS  = -m elf_i386 -T linker.ld
 
 # 目录
