@@ -1,10 +1,11 @@
 /* ==========================================
- * 进程管理实现 v0.4.0
+ * 进程管理实现 v0.6.0
  * 功能增强：
  *   1. 每个进程独立的页目录（地址空间隔离）
  *   2. 用户栈和用户堆
  *   3. 内核/用户空间分离
- * 调度算法：时间片轮转（Round Robin）
+ *   4. 基于优先级的调度算法
+ * 调度算法：优先级调度 + 同优先级轮转
  * ========================================== */
 #include "task.h"
 #include "heap.h"
@@ -326,35 +327,58 @@ void schedule() {
         current_task->state = TASK_READY;
     }
 
-    /* 查找下一个就绪进程 */
+    /* ==========================================
+     * 优先级调度算法：
+     * 1. 找到最高优先级的就绪进程
+     * 2. 相同优先级的进程按轮转方式调度
+     * 3. 优先级数值越大，优先级越高
+     * ========================================== */
+    
     task_t *next = NULL;
-    task_t *start = current_task ? current_task->next : task_list;
-
-    /* 从当前位置开始查找 */
-    task_t *p = start;
+    int highest_priority = -1;
+    
+    /* 第一遍：找到最高优先级 */
+    task_t *p = task_list;
     while (p != NULL) {
-        if (p->state == TASK_READY) {
-            next = p;
-            break;
+        if (p->state == TASK_READY && p->priority > highest_priority) {
+            highest_priority = p->priority;
         }
         p = p->next;
     }
-
-    /* 如果没找到，从头开始找 */
-    if (next == NULL) {
-        p = task_list;
-        while (p != start) {
-            if (p->state == TASK_READY) {
+    
+    /* 如果没有找到就绪进程，运行 idle 进程 */
+    if (highest_priority == -1) {
+        next = idle_task;
+    } else {
+        /* 第二遍：在最高优先级的进程中，选择下一个（轮转） */
+        task_t *start = current_task ? current_task->next : task_list;
+        
+        /* 从当前位置开始查找 */
+        p = start;
+        while (p != NULL) {
+            if (p->state == TASK_READY && p->priority == highest_priority) {
                 next = p;
                 break;
             }
             p = p->next;
         }
-    }
-
-    /* 如果还是没找到，运行idle进程 */
-    if (next == NULL) {
-        next = idle_task;
+        
+        /* 如果没找到，从头开始找 */
+        if (next == NULL) {
+            p = task_list;
+            while (p != start) {
+                if (p->state == TASK_READY && p->priority == highest_priority) {
+                    next = p;
+                    break;
+                }
+                p = p->next;
+            }
+        }
+        
+        /* 如果还是没找到（理论上不应该发生），运行 idle 进程 */
+        if (next == NULL) {
+            next = idle_task;
+        }
     }
 
     /* 切换进程 */
