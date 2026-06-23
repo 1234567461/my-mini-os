@@ -23,6 +23,8 @@
 #include "ramfs.h"
 #include "user.h"
 #include "system.h"
+#include "serial.h"
+#include "rtc.h"
 
 /* ==========================================
  * 外部函数声明
@@ -183,6 +185,14 @@ void kernel_main(void)
     keyboard_init();
     vga_puts("  [✓] PS/2 Keyboard Driver\n");
     klog_log("drv", "PS/2 keyboard driver initialized");
+
+    /* 初始化串口 */
+    serial_debug_init();
+    klog_log("drv", "Serial driver initialized (COM1, 115200 baud)");
+
+    /* 初始化RTC */
+    rtc_init();
+    klog_log("drv", "RTC (Real-Time Clock) driver initialized");
 
     /* 开中断 */
     sti();
