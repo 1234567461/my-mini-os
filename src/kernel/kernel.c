@@ -14,6 +14,10 @@
 #include "keyboard.h"
 #include "shell.h"
 #include "types.h"
+#include "memory.h"
+#include "paging.h"
+#include "heap.h"
+#include "task.h"
 
 /* ==========================================
  * 函数：kernel_main
@@ -37,9 +41,30 @@ void kernel_main(void)
 
     /* 显示系统信息 */
     vga_set_color(VGA_COLOR_LIGHT_CYAN, VGA_COLOR_BLACK);
-    vga_puts("My Mini OS v0.2.0\n");
+    vga_puts("My Mini OS v0.3.0\n");
     vga_set_color(VGA_COLOR_WHITE, VGA_COLOR_BLACK);
     vga_puts("32-bit Protected Mode Kernel\n");
+    vga_putc('\n');
+
+    /* 初始化内存管理 */
+    vga_puts("Initializing memory management...\n");
+
+    /* 初始化物理内存管理器 */
+    pmm_init();
+    vga_puts("  [✓] Physical Memory Manager (bitmap)\n");
+
+    /* 初始化分页机制 */
+    paging_init();
+    vga_puts("  [✓] Paging (4GB virtual address space)\n");
+
+    /* 初始化堆内存分配器 */
+    heap_init();
+    vga_puts("  [✓] Heap Allocator (kmalloc/kfree)\n");
+
+    /* 初始化进程调度器 */
+    task_init();
+    vga_puts("  [✓] Task Scheduler (Round Robin)\n");
+
     vga_putc('\n');
 
     /* 初始化中断系统 */

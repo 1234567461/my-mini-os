@@ -30,4 +30,9 @@ int atoi(const char *str);
 /* 数字转字符串 */
 char *itoa(int value, char *str, int base);
 
+/* 内存操作 */
+void *memset(void *ptr, int value, size_t num);
+void *memcpy(void *dst, const void *src, size_t num);
+int memcmp(const void *ptr1, const void *ptr2, size_t num);
+
 #endif /* STRING_H */

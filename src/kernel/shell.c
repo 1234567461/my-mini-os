@@ -11,6 +11,9 @@
 #include "pit.h"
 #include "string.h"
 #include "types.h"
+#include "memory.h"
+#include "heap.h"
+#include "task.h"
 
 /* 命令缓冲区大小 */
 #define CMD_BUF_SIZE 128
@@ -28,6 +31,12 @@ static const char *help_text =
     "  color    - Change text color (color <fg> <bg>)\n"
     "  date     - Show system ticks\n"
     "  version  - Show OS version\n"
+    "  meminfo  - Show memory usage information\n"
+    "  ps       - List running processes\n"
+    "  uname    - Show system information\n"
+    "  hostname - Show system hostname\n"
+    "  whoami   - Show current user\n"
+    "  calc     - Simple calculator (calc <num1> <op> <num2>)\n"
     "  reboot   - Reboot (not implemented yet)\n";
 
 /* ==========================================
@@ -80,7 +89,11 @@ static void cmd_about(void)
     vga_puts("  - Programmable Interrupt Controller\n");
     vga_puts("  - PIT timer (system clock)\n");
     vga_puts("  - PS/2 keyboard driver\n");
-    vga_puts("  - Simple shell\n\n");
+    vga_puts("  - Physical memory management\n");
+    vga_puts("  - Paging support\n");
+    vga_puts("  - Heap allocator (kmalloc/kfree)\n");
+    vga_puts("  - Task scheduler (Round Robin)\n");
+    vga_puts("  - Simple shell with many commands\n\n");
     vga_puts("Made with <3 for learning purposes\n");
 }
 
@@ -109,7 +122,7 @@ static void cmd_version(void)
     vga_set_color(VGA_COLOR_LIGHT_CYAN, VGA_COLOR_BLACK);
     vga_puts("My Mini OS ");
     vga_set_color(VGA_COLOR_WHITE, VGA_COLOR_BLACK);
-    vga_puts("v0.2.0\n");
+    vga_puts("v0.3.0\n");
     vga_puts("Kernel: 32-bit protected mode\n");
     vga_puts("Build: Learning Edition\n");
 }
@@ -153,6 +166,205 @@ static void cmd_color(const char *args)
 
     vga_set_color(fg, bg);
     vga_puts("Color changed!\n");
+}
+
+/* ==========================================
+ * 函数：cmd_meminfo
+ * 功能：显示内存使用信息
+ * ========================================== */
+static void cmd_meminfo(void)
+{
+    size_t total_pages = pmm_get_total_pages();
+    size_t used_pages = pmm_get_used_pages();
+    size_t free_pages = total_pages - used_pages;
+
+    size_t total_mem_kb = (total_pages * PAGE_SIZE) / 1024;
+    size_t used_mem_kb = (used_pages * PAGE_SIZE) / 1024;
+    size_t free_mem_kb = (free_pages * PAGE_SIZE) / 1024;
+
+    size_t heap_total_kb = heap_get_total() / 1024;
+    size_t heap_used_kb = heap_get_used() / 1024;
+    size_t heap_free_kb = heap_get_free() / 1024;
+
+    vga_set_color(VGA_COLOR_LIGHT_CYAN, VGA_COLOR_BLACK);
+    vga_puts("Memory Information\n");
+    vga_set_color(VGA_COLOR_WHITE, VGA_COLOR_BLACK);
+    vga_puts("==================\n\n");
+
+    vga_set_color(VGA_COLOR_LIGHT_GREEN, VGA_COLOR_BLACK);
+    vga_puts("Physical Memory:\n");
+    vga_set_color(VGA_COLOR_WHITE, VGA_COLOR_BLACK);
+    vga_printf("  Total:  %d KB (%d pages)\n", total_mem_kb, total_pages);
+    vga_printf("  Used:   %d KB (%d pages)\n", used_mem_kb, used_pages);
+    vga_printf("  Free:   %d KB (%d pages)\n\n", free_mem_kb, free_pages);
+
+    vga_set_color(VGA_COLOR_LIGHT_GREEN, VGA_COLOR_BLACK);
+    vga_puts("Heap Memory:\n");
+    vga_set_color(VGA_COLOR_WHITE, VGA_COLOR_BLACK);
+    vga_printf("  Total:  %d KB\n", heap_total_kb);
+    vga_printf("  Used:   %d KB\n", heap_used_kb);
+    vga_printf("  Free:   %d KB\n", heap_free_kb);
+}
+
+/* ==========================================
+ * 函数：cmd_ps
+ * 功能：显示进程列表
+ * ========================================== */
+static void cmd_ps(void)
+{
+    task_t *list = get_task_list();
+    uint32_t count = get_task_count();
+
+    vga_set_color(VGA_COLOR_LIGHT_CYAN, VGA_COLOR_BLACK);
+    vga_puts("Process List\n");
+    vga_set_color(VGA_COLOR_WHITE, VGA_COLOR_BLACK);
+    vga_puts("============\n\n");
+
+    vga_set_color(VGA_COLOR_LIGHT_BROWN, VGA_COLOR_BLACK);
+    vga_printf("%-5s %-16s %-10s %-8s %-8s\n", "PID", "NAME", "STATE", "PRIORITY", "SLICE");
+    vga_set_color(VGA_COLOR_WHITE, VGA_COLOR_BLACK);
+    vga_puts("------------------------------------------------\n");
+
+    task_t *p = list;
+    while (p != NULL) {
+        const char *state_str;
+        switch (p->state) {
+            case TASK_RUNNING:  state_str = "Running"; break;
+            case TASK_READY:    state_str = "Ready"; break;
+            case TASK_BLOCKED:  state_str = "Blocked"; break;
+            case TASK_SLEEPING: state_str = "Sleeping"; break;
+            case TASK_ZOMBIE:   state_str = "Zombie"; break;
+            default:            state_str = "Unknown"; break;
+        }
+
+        /* 当前运行的进程用绿色显示 */
+        if (p->state == TASK_RUNNING) {
+            vga_set_color(VGA_COLOR_LIGHT_GREEN, VGA_COLOR_BLACK);
+        }
+
+        vga_printf("%-5d %-16s %-10s %-8d %-8d\n",
+                   p->pid, p->name, state_str, p->priority, p->remaining_time);
+
+        vga_set_color(VGA_COLOR_WHITE, VGA_COLOR_BLACK);
+        p = p->next;
+    }
+
+    vga_puts("\n");
+    vga_printf("Total: %d processes\n", count);
+}
+
+/* ==========================================
+ * 函数：cmd_uname
+ * 功能：显示系统信息
+ * ========================================== */
+static void cmd_uname(void)
+{
+    vga_puts("MyMiniOS 0.3.0 i386 ");
+    vga_puts("32-bit Protected Mode Kernel\n");
+}
+
+/* ==========================================
+ * 函数：cmd_hostname
+ * 功能：显示主机名
+ * ========================================== */
+static void cmd_hostname(void)
+{
+    vga_puts("mini-os\n");
+}
+
+/* ==========================================
+ * 函数：cmd_whoami
+ * 功能：显示当前用户
+ * ========================================== */
+static void cmd_whoami(void)
+{
+    vga_puts("root\n");
+}
+
+/* ==========================================
+ * 函数：cmd_calc
+ * 功能：简单计算器
+ * ========================================== */
+static void cmd_calc(const char *args)
+{
+    int num1 = 0, num2 = 0;
+    char op = 0;
+    const char *p = args;
+
+    /* 跳过开头的空格 */
+    while (*p == ' ' || *p == '\t') {
+        p++;
+    }
+
+    /* 解析第一个数字 */
+    int sign1 = 1;
+    if (*p == '-') {
+        sign1 = -1;
+        p++;
+    }
+    while (*p >= '0' && *p <= '9') {
+        num1 = num1 * 10 + (*p - '0');
+        p++;
+    }
+    num1 *= sign1;
+
+    /* 跳过空格 */
+    while (*p == ' ' || *p == '\t') {
+        p++;
+    }
+
+    /* 解析运算符 */
+    if (*p == '+' || *p == '-' || *p == '*' || *p == '/') {
+        op = *p;
+        p++;
+    } else {
+        vga_puts("Usage: calc <num1> <op> <num2>\n");
+        vga_puts("Operators: +, -, *, /\n");
+        return;
+    }
+
+    /* 跳过空格 */
+    while (*p == ' ' || *p == '\t') {
+        p++;
+    }
+
+    /* 解析第二个数字 */
+    int sign2 = 1;
+    if (*p == '-') {
+        sign2 = -1;
+        p++;
+    }
+    while (*p >= '0' && *p <= '9') {
+        num2 = num2 * 10 + (*p - '0');
+        p++;
+    }
+    num2 *= sign2;
+
+    /* 计算结果 */
+    int result;
+    switch (op) {
+        case '+':
+            result = num1 + num2;
+            break;
+        case '-':
+            result = num1 - num2;
+            break;
+        case '*':
+            result = num1 * num2;
+            break;
+        case '/':
+            if (num2 == 0) {
+                vga_puts("Error: Division by zero\n");
+                return;
+            }
+            result = num1 / num2;
+            break;
+        default:
+            vga_puts("Unknown operator\n");
+            return;
+    }
+
+    vga_printf("%d %c %d = %d\n", num1, op, num2, result);
 }
 
 /* ==========================================
@@ -204,6 +416,18 @@ static void execute_command(const char *cmd)
         cmd_color(args);
     } else if (strcmp(cmd_name, "date") == 0) {
         vga_printf("System ticks: %d\n", pit_get_ticks());
+    } else if (strcmp(cmd_name, "meminfo") == 0) {
+        cmd_meminfo();
+    } else if (strcmp(cmd_name, "ps") == 0) {
+        cmd_ps();
+    } else if (strcmp(cmd_name, "uname") == 0) {
+        cmd_uname();
+    } else if (strcmp(cmd_name, "hostname") == 0) {
+        cmd_hostname();
+    } else if (strcmp(cmd_name, "whoami") == 0) {
+        cmd_whoami();
+    } else if (strcmp(cmd_name, "calc") == 0) {
+        cmd_calc(args);
     } else if (strcmp(cmd_name, "reboot") == 0) {
         vga_puts("Reboot not implemented yet. Press Ctrl+Alt+Del in QEMU.\n");
     } else {
