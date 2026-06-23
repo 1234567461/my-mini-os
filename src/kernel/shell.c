@@ -18,6 +18,10 @@
 #include "klog.h"
 #include "user.h"
 #include "vfs.h"
+#include "rtc.h"
+#include "mbr.h"
+#include "mouse.h"
+#include "serial.h"
 
 /* 命令缓冲区大小 */
 #define CMD_BUF_SIZE 128
@@ -27,30 +31,33 @@
  * ========================================== */
 static const char *help_text =
     "Available commands:\n"
-    "  help     - Show this help message\n"
-    "  clear    - Clear the screen\n"
-    "  echo     - Echo text back (echo <text>)\n"
-    "  about    - About My Mini OS\n"
-    "  uptime   - Show system uptime\n"
-    "  color    - Change text color (color <fg> <bg>)\n"
-    "  date     - Show system ticks\n"
-    "  version  - Show OS version\n"
-    "  meminfo  - Show memory usage information\n"
-    "  ps       - List running processes\n"
-    "  uname    - Show system information\n"
-    "  hostname - Show system hostname\n"
-    "  whoami   - Show current user and permission level\n"
-    "  su       - Switch user (su <username> [password])\n"
-    "  calc     - Simple calculator (calc <num1> <op> <num2>)\n"
-    "  dmesg    - Show kernel boot log\n"
-    "  reboot   - Reboot the system\n"
-    "  ls       - List directory contents\n"
-    "  cat      - Display file contents\n"
-    "  mkdir    - Create a directory\n"
-    "  rm       - Remove a file\n"
-    "  cd       - Change directory\n"
-    "  pwd      - Print working directory\n"
-    "  touch    - Create empty file\n";
+    "  help       - Show this help message\n"
+    "  clear      - Clear the screen\n"
+    "  echo       - Echo text back (echo <text>)\n"
+    "  about      - About My Mini OS\n"
+    "  uptime     - Show system uptime\n"
+    "  color      - Change text color (color <fg> <bg>)\n"
+    "  date       - Show current date and time\n"
+    "  version    - Show OS version\n"
+    "  meminfo    - Show memory usage information\n"
+    "  ps         - List running processes\n"
+    "  uname      - Show system information\n"
+    "  hostname   - Show system hostname\n"
+    "  whoami     - Show current user and permission level\n"
+    "  su         - Switch user (su <username> [password])\n"
+    "  calc       - Simple calculator (calc <num1> <op> <num2>)\n"
+    "  dmesg      - Show kernel boot log\n"
+    "  reboot     - Reboot the system\n"
+    "  ls         - List directory contents\n"
+    "  cat        - Display file contents\n"
+    "  mkdir      - Create a directory\n"
+    "  rm         - Remove a file\n"
+    "  cd         - Change directory\n"
+    "  pwd        - Print working directory\n"
+    "  touch      - Create empty file\n"
+    "  partitions - Show disk partition table\n"
+    "  mouse      - Show mouse status\n"
+    "  serial     - Serial port test\n";
 
 /* ==========================================
  * 函数：cmd_help
@@ -135,7 +142,7 @@ static void cmd_version(void)
     vga_set_color(VGA_COLOR_LIGHT_CYAN, VGA_COLOR_BLACK);
     vga_puts("My Mini OS ");
     vga_set_color(VGA_COLOR_WHITE, VGA_COLOR_BLACK);
-    vga_puts("v0.4.0\n");
+    vga_puts("v0.6.0\n");
     vga_puts("Kernel: 32-bit protected mode\n");
     vga_puts("Memory: 128MB physical, 4MB large page support\n");
     vga_puts("Features: memory isolation, per-process address space\n");
@@ -654,6 +661,91 @@ static void cmd_touch(const char *args)
 }
 
 /* ==========================================
+ * 函数：cmd_partitions
+ * 功能：显示磁盘分区表
+ * ========================================== */
+static void cmd_partitions(void)
+{
+    partition_info_t partitions[4];
+    int count = mbr_list_partitions(0, partitions, 4);
+
+    vga_set_color(VGA_COLOR_LIGHT_CYAN, VGA_COLOR_BLACK);
+    vga_puts("Disk Partitions (MBR)\n");
+    vga_set_color(VGA_COLOR_WHITE, VGA_COLOR_BLACK);
+    vga_puts("======================\n\n");
+
+    if (count <= 0) {
+        vga_puts("No valid MBR partition table found.\n");
+        return;
+    }
+
+    vga_set_color(VGA_COLOR_LIGHT_BROWN, VGA_COLOR_BLACK);
+    vga_printf("%-4s %-12s %-10s %-10s %-10s\n", "#", "Type", "Size(MB)", "Start LBA", "Active");
+    vga_set_color(VGA_COLOR_WHITE, VGA_COLOR_BLACK);
+    vga_puts("--------------------------------------------------------\n");
+
+    for (int i = 0; i < count; i++) {
+        if (partitions[i].active) {
+            vga_set_color(VGA_COLOR_LIGHT_GREEN, VGA_COLOR_BLACK);
+        }
+        vga_printf("%-4d %-12s %-10d %-10d %-10s\n",
+                   partitions[i].index,
+                   partitions[i].type_name,
+                   partitions[i].size_mb,
+                   partitions[i].start_lba,
+                   partitions[i].active ? "Yes" : "No");
+        vga_set_color(VGA_COLOR_WHITE, VGA_COLOR_BLACK);
+    }
+
+    vga_puts("\n");
+    vga_printf("Total: %d partition(s)\n", count);
+}
+
+/* ==========================================
+ * 函数：cmd_mouse
+ * 功能：显示鼠标状态
+ * ========================================== */
+static void cmd_mouse(void)
+{
+    mouse_state_t state;
+    mouse_get_state(&state);
+
+    vga_set_color(VGA_COLOR_LIGHT_CYAN, VGA_COLOR_BLACK);
+    vga_puts("Mouse Status\n");
+    vga_set_color(VGA_COLOR_WHITE, VGA_COLOR_BLACK);
+    vga_puts("============\n\n");
+
+    vga_printf("Position: (%d, %d)\n", state.x, state.y);
+    vga_printf("Delta:    (%d, %d)\n", state.dx, state.dy);
+    vga_printf("Buttons:\n");
+    vga_printf("  Left:   %s\n", state.left_pressed ? "Pressed" : "Released");
+    vga_printf("  Right:  %s\n", state.right_pressed ? "Pressed" : "Released");
+    vga_printf("  Middle: %s\n", state.middle_pressed ? "Pressed" : "Released");
+}
+
+/* ==========================================
+ * 函数：cmd_serial
+ * 功能：串口测试
+ * ========================================== */
+static void cmd_serial(const char *args)
+{
+    vga_set_color(VGA_COLOR_LIGHT_CYAN, VGA_COLOR_BLACK);
+    vga_puts("Serial Port Test\n");
+    vga_set_color(VGA_COLOR_WHITE, VGA_COLOR_BLACK);
+    vga_puts("=================\n\n");
+
+    /* 如果有参数，发送到串口 */
+    if (*args != '\0') {
+        serial_write_string(SERIAL_COM1_PORT, args);
+        serial_write_char(SERIAL_COM1_PORT, '\n');
+        vga_printf("Sent to COM1: %s\n", args);
+    } else {
+        vga_puts("COM1: 115200 baud, 8N1\n");
+        vga_puts("Usage: serial <text> - Send text to serial port\n");
+    }
+}
+
+/* ==========================================
  * 函数：execute_command
  * 功能：执行一条命令
  * ========================================== */
@@ -701,6 +793,16 @@ static void execute_command(const char *cmd)
     } else if (strcmp(cmd_name, "color") == 0) {
         cmd_color(args);
     } else if (strcmp(cmd_name, "date") == 0) {
+        rtc_time_t time;
+        rtc_get_time(&time);
+        
+        char date_str[32];
+        char time_str[32];
+        rtc_format_date(&time, date_str, sizeof(date_str));
+        rtc_format_time(&time, time_str, sizeof(time_str));
+        
+        vga_printf("Date: %s\n", date_str);
+        vga_printf("Time: %s\n", time_str);
         vga_printf("System ticks: %d\n", pit_get_ticks());
     } else if (strcmp(cmd_name, "meminfo") == 0) {
         cmd_meminfo();
@@ -750,6 +852,12 @@ static void execute_command(const char *cmd)
         cmd_pwd();
     } else if (strcmp(cmd_name, "touch") == 0) {
         cmd_touch(args);
+    } else if (strcmp(cmd_name, "partitions") == 0) {
+        cmd_partitions();
+    } else if (strcmp(cmd_name, "mouse") == 0) {
+        cmd_mouse();
+    } else if (strcmp(cmd_name, "serial") == 0) {
+        cmd_serial(args);
     } else {
         vga_set_color(VGA_COLOR_LIGHT_RED, VGA_COLOR_BLACK);
         vga_printf("Command not found: %s\n", cmd_name);

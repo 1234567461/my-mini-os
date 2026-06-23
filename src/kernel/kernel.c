@@ -23,6 +23,15 @@
 #include "ramfs.h"
 #include "user.h"
 #include "system.h"
+#include "block.h"
+#include "ata.h"
+#include "fat16.h"
+#include "fat32.h"
+#include "mbr.h"
+#include "rtc.h"
+#include "serial.h"
+#include "mouse.h"
+#include "ipc.h"
 
 /* ==========================================
  * 外部函数声明
@@ -90,7 +99,7 @@ void kernel_main(void)
 
     /* 初始化内核日志系统（最早初始化） */
     klog_init();
-    klog_log("boot", "My Mini OS v0.5.0 starting up...");
+    klog_log("boot", "My Mini OS v0.6.0 starting up...");
     klog_log("boot", "Kernel loaded at 0x20000");
 
     /* 显示标题 */
@@ -106,7 +115,7 @@ void kernel_main(void)
 
     /* 显示系统信息 */
     vga_set_color(VGA_COLOR_LIGHT_CYAN, VGA_COLOR_BLACK);
-    vga_puts("My Mini OS v0.5.0\n");
+    vga_puts("My Mini OS v0.6.0\n");
     vga_set_color(VGA_COLOR_WHITE, VGA_COLOR_BLACK);
     vga_puts("32-bit Protected Mode Kernel\n");
     vga_puts("Memory: 128MB physical, 4MB large page support\n");
@@ -184,12 +193,88 @@ void kernel_main(void)
     vga_puts("  [✓] PS/2 Keyboard Driver\n");
     klog_log("drv", "PS/2 keyboard driver initialized");
 
+    /* 初始化实时时钟 */
+    rtc_init();
+    klog_log("drv", "RTC real-time clock initialized");
+
+    /* 初始化串口 */
+    serial_init_com1();
+    klog_log("drv", "Serial port COM1 initialized (115200 baud)");
+
+    /* 初始化鼠标 */
+    mouse_init();
+    klog_log("drv", "PS/2 mouse driver initialized");
+
     /* 开中断 */
     sti();
     vga_puts("  [✓] Interrupts enabled\n");
     klog_log("int", "Interrupts enabled (IF flag set)");
 
     vga_putc('\n');
+
+    /* 初始化块设备层和磁盘驱动 */
+    vga_puts("Initializing storage subsystem...\n");
+    klog_log("drv", "Initializing storage subsystem");
+
+    /* 初始化块设备层 */
+    block_init();
+    vga_puts("  [✓] Block Device Layer (buffer cache)\n");
+    klog_log("drv", "Block device layer initialized (64 buffers)");
+
+    /* 初始化ATA/IDE磁盘驱动 */
+    ata_init();
+    vga_puts("  [✓] ATA/IDE Disk Driver (PIO mode)\n");
+    klog_log("drv", "ATA/IDE disk driver initialized (PIO mode, 28-bit LBA)");
+
+    /* 注册ATA为块设备 */
+    ata_register_as_block_device();
+    klog_log("drv", "ATA disk registered as block device 0");
+
+    /* 检测磁盘分区 */
+    vga_puts("Detecting disk partitions...\n");
+    klog_log("fs", "Detecting disk partitions");
+
+    partition_info_t partitions[4];
+    int part_count = mbr_list_partitions(0, partitions, 4);
+    if (part_count > 0) {
+        vga_printf("  Found %d partition(s)\n", part_count);
+        klog_log("fs", "Found %d MBR partition(s)", part_count);
+        
+        for (int i = 0; i < part_count; i++) {
+            vga_printf("    Partition %d: %s, %d MB, LBA start: %d\n",
+                       partitions[i].index,
+                       partitions[i].type_name,
+                       partitions[i].size_mb,
+                       partitions[i].start_lba);
+        }
+    } else {
+        vga_puts("  No valid MBR partition table found\n");
+        klog_log("fs", "No valid MBR partition table found");
+    }
+
+    /* 尝试挂载FAT文件系统 */
+    vga_puts("Detecting file systems...\n");
+    klog_log("fs", "Detecting file systems on disk");
+
+    /* 尝试FAT16 */
+    vfs_filesystem_t *fat16_fs = fat16_init(0);
+    if (fat16_fs != NULL) {
+        vga_puts("  [✓] FAT16 file system detected\n");
+        klog_log("fs", "FAT16 file system detected on device 0");
+    }
+
+    /* 尝试FAT32 */
+    vfs_filesystem_t *fat32_fs = fat32_init(0);
+    if (fat32_fs != NULL) {
+        vga_puts("  [✓] FAT32 file system detected\n");
+        klog_log("fs", "FAT32 file system detected on device 0");
+    }
+
+    vga_putc('\n');
+
+    /* 初始化IPC子系统 */
+    ipc_init();
+    klog_log("ipc", "IPC subsystem initialized (pipes & signals)");
 
     vga_set_color(VGA_COLOR_LIGHT_GREEN, VGA_COLOR_BLACK);
     vga_puts("All systems initialized successfully!\n");

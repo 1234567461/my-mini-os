@@ -106,4 +106,19 @@ void task_exit();
 /* 切换进程地址空间 */
 void switch_task_address_space(task_t *task);
 
+/* 根据 PID 查找进程 */
+task_t *task_find_by_pid(uint32_t pid);
+
+/* 设置进程优先级 */
+int task_set_priority(uint32_t pid, uint32_t priority);
+
+/* 获取进程优先级 */
+int task_get_priority(uint32_t pid, uint32_t *priority);
+
+/* 时钟中断处理（用于进程调度） */
+void task_tick();
+
+/* 进程状态转字符串 */
+const char *task_state_str(task_state_t state);
+
 #endif /* TASK_H */

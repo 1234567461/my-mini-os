@@ -1,15 +1,152 @@
 # Changelog
-
 All notable changes to this project will be documented in this file.
 
-## [v0.5.0] - 2026-06-23
+## [v0.6.0] - 2026-06-23
+### Overview
+v0.6.0 is a major release that adds comprehensive device driver support, FAT32 file system, MBR partition table parsing, and inter-process communication (IPC). This version significantly expands the hardware support and process management capabilities of the operating system.
 
-### 🎉 Overview
+### New Features
+
+#### Disk Partition Support (MBR)
+- **MBR partition table parsing**: Complete Master Boot Record parsing
+  - Read and validate MBR signature (0xAA55)
+  - Parse 4 primary partitions
+  - Support for CHS and LBA addressing
+  - Active partition detection
+- **Partition type identification**: Recognize common partition types
+  - FAT12/FAT16/FAT32
+  - NTFS, Linux swap, Linux ext
+  - Extended partitions
+- **New shell command**: `partitions` - Display disk partition table
+
+#### FAT32 File System
+- **Complete FAT32 implementation**:
+  - Boot sector/BPB parsing
+  - FSInfo sector support
+  - FAT table read/write operations
+  - Cluster allocation and deallocation
+  - Cluster chain management
+- **VFS compatible**: Implements all VFS operations
+- **Root directory support**: Full file operations in root directory
+- **Large file support**: Supports files larger than FAT16 limits
+
+#### Inter-Process Communication (IPC)
+- **Pipe communication**:
+  - Ring buffer implementation (4KB buffer)
+  - Read/write file descriptor interface
+  - Non-blocking mode support
+  - Pipe creation, read, write, close operations
+- **Signal mechanism**:
+  - 32 signal types (SIGHUP, SIGINT, SIGKILL, etc.)
+  - Signal handler registration
+  - Signal sending (kill, raise)
+  - Signal blocking (sigprocmask)
+  - Pending signal checking and processing
+  - SIGKILL and SIGSTOP cannot be caught or blocked
+
+#### Process Priority Scheduling
+- **Priority-based time slices**: Higher priority processes get more CPU time
+- **Time slice calculation**: `time_slice = DEFAULT_TIME_SLICE + priority * 5`
+- **Priority levels**: 0-31 priority levels
+- **Fair scheduling**: Still round-robin based, but with variable time slices
+
+#### Serial Port Driver (COM1-COM4)
+- **Full serial port support**: COM1, COM2, COM3, COM4
+- **Baud rate configuration**: Support for common baud rates
+  - 115200, 57600, 38400, 19200, 9600, etc.
+- **Serial parameters**: 8 data bits, 1 stop bit, no parity (8N1)
+- **FIFO buffer support**: Hardware FIFO for better performance
+- **I/O operations**:
+  - Blocking and non-blocking read/write
+  - Character and string output
+  - Formatted output (serial_printf)
+- **Port addresses**:
+  - COM1: 0x3F8
+  - COM2: 0x2F8
+  - COM3: 0x3E8
+  - COM4: 0x2E8
+- **New shell command**: `serial` - Serial port test and text output
+
+#### Real-Time Clock (RTC) Driver
+- **CMOS RTC reading**: Read time from hardware RTC
+- **Time/date information**:
+  - Year, month, day
+  - Hour, minute, second
+  - Day of week
+- **BCD conversion**: BCD to binary and binary to BCD conversion
+- **Time formatting**:
+  - Date format: YYYY-MM-DD
+  - Time format: HH:MM:SS
+- **New shell command**: `date` - Display current date and time
+
+#### PS/2 Mouse Driver
+- **PS/2 mouse support**: IRQ12 interrupt driven
+- **3-byte packet parsing**: Standard PS/2 mouse protocol
+- **Movement detection**: X and Y axis delta tracking
+- **Button detection**: Left, right, and middle button states
+- **Callback mechanism**: Register callback functions for mouse events
+- **Mouse state structure**: Complete state information
+  - Position coordinates
+  - Movement delta
+  - Button states (pressed/released)
+- **New shell command**: `mouse` - Display mouse status
+
+### Shell Commands
+**New commands added in v0.6.0:**
+- `date` - Show current date and time (RTC)
+- `partitions` - Show disk partition table (MBR)
+- `mouse` - Show mouse status
+- `serial` - Serial port test, send text to COM1
+
+### New Files Added
+```
+src/kernel/include/
+├── serial.h      # Serial port driver header
+├── rtc.h         # RTC driver header
+├── mouse.h       # PS/2 mouse driver header
+├── mbr.h         # MBR partition table header
+├── fat32.h       # FAT32 filesystem header
+└── ipc.h         # IPC (pipes & signals) header
+
+src/kernel/
+├── serial.c      # Serial port driver implementation
+├── rtc.c         # RTC driver implementation
+├── mouse.c       # PS/2 mouse driver implementation
+├── mbr.c         # MBR partition table implementation
+├── fat32.c       # FAT32 filesystem implementation
+└── ipc.c         # IPC (pipes & signals) implementation
+```
+
+### Technical Details
+- **Compiler**: GCC (32-bit, freestanding)
+- **Assembler**: NASM
+- **Linker**: LD (ELF format)
+- **Emulator**: QEMU (x86_64)
+- **Target**: 32-bit x86 Protected Mode
+- **Physical memory**: 128MB
+- **Virtual address space**: 4GB
+- **Page sizes**: 4KB (small), 4MB (large)
+- **Interrupts**: IRQ12 (mouse), IRQ8 (RTC)
+
+### Development Progress
+- [x] v0.1.0 - v0.2.0: Boot sector, real mode basics
+- [x] v0.3.0: 32-bit protected mode, C kernel, basic drivers
+- [x] v0.4.0: Memory isolation, large pages, page faults
+- [x] v0.5.0: User permissions, VFS, ramfs, disk driver, FAT16
+- [x] v0.6.0: IPC, device drivers (serial/RTC/mouse), FAT32, MBR
+- [ ] v0.7.0: Network support
+- [ ] v0.8.0: GUI
+- [ ] v1.0.0: Stable release
+
+---
+
+## [v0.5.0] - 2026-06-23
+### Overview
 v0.5.0 is a major release that introduces memory isolation, user permissions, virtual file system, and disk support. This version lays the foundation for a more secure and capable operating system.
 
-### ✨ New Features
+### New Features
 
-#### 🔐 Memory Management & Protection
+#### Memory Management & Protection
 - **Extended physical memory**: 32MB → 128MB (32768 pages)
 - **Large page support**: 4MB large pages (PSE) for kernel space, reducing TLB misses
 - **Full virtual memory**: Complete two-level page table implementation
@@ -20,7 +157,7 @@ v0.5.0 is a major release that introduces memory isolation, user permissions, vi
 - **Page fault handling**: Captures illegal memory access with detailed error info
 - **Independent stacks**: Separate kernel stack and user stack for each process
 
-#### 👤 User Permission System
+#### User Permission System
 - **4 user levels**: Guest, Normal User, Administrator, Kernel
 - **`su` command**: Switch users with password authentication
 - **`whoami` command**: View current username and permission level
@@ -32,19 +169,19 @@ v0.5.0 is a major release that introduces memory isolation, user permissions, vi
   - guest / (empty) - Guest
   - kernel / (empty) - Kernel user
 
-#### 📁 Virtual File System (VFS)
+#### Virtual File System (VFS)
 - **VFS abstraction layer**: Unified interface for multiple file systems
 - **File system operations**: open, close, read, write, create, unlink, mkdir, rmdir, readdir, stat
 - **File types**: Regular files and directories
 - **Path resolution**: Relative and absolute path support
 
-#### 💾 RAM File System (ramfs)
+#### RAM File System (ramfs)
 - **In-memory file system**: Tree-structured directory hierarchy
 - **Full file operations**: create, read, write, delete
 - **Directory support**: mkdir, rmdir, cd, pwd
 - **Shell commands**: ls, cat, mkdir, rm, cd, pwd, touch
 
-#### 💿 Disk & Block Device Layer
+#### Disk & Block Device Layer
 - **Block device abstraction**: Unified block device interface
 - **Buffer cache**: 64-block LRU cache for improved disk I/O performance
 - **Dirty buffer tracking**: Write-back caching with block_sync()
@@ -53,7 +190,7 @@ v0.5.0 is a major release that introduces memory isolation, user permissions, vi
   - Drive identification
   - Primary channel support
 
-#### 📂 FAT16 File System
+#### FAT16 File System
 - **Complete FAT16 support**:
   - FAT table operations (read, write, allocate clusters)
   - Directory entry management
@@ -65,7 +202,7 @@ v0.5.0 is a major release that introduces memory isolation, user permissions, vi
 - **Root directory support**: Full file operations in root directory
 - **VFS compatible**: Implements all VFS operations
 
-#### 🔧 System Enhancements
+#### System Enhancements
 - **System reboot**: `reboot` command via 8042 keyboard controller
 - **Kernel log**: `dmesg` command with ring buffer
   - Boot logging for all subsystems
@@ -74,14 +211,14 @@ v0.5.0 is a major release that introduces memory isolation, user permissions, vi
   - Basic syscalls: exit, write, read, open, close, getpid, brk
   - Parameter passing via registers
 
-### 📊 Architecture Improvements
+### Architecture Improvements
 - 32-bit x86 Protected Mode
 - Separate kernel and user address spaces
 - Memory protection via page permissions
 - Modular driver architecture
 - Layered file system design (VFS → FS → Block Device)
 
-### 🧪 Shell Commands
+### Shell Commands
 **New commands added in v0.5.0:**
 - `ls` - List directory contents
 - `cat` - Display file contents
@@ -95,7 +232,7 @@ v0.5.0 is a major release that introduces memory isolation, user permissions, vi
 - `dmesg` - Show kernel boot log
 - `reboot` - Reboot system
 
-### 📁 Project Structure
+### Project Structure
 ```
 my-mini-os/
 ├── src/
@@ -164,7 +301,7 @@ my-mini-os/
 └── LICENSE                    # License
 ```
 
-### 🔧 Technical Details
+### Technical Details
 - **Compiler**: GCC (32-bit, freestanding)
 - **Assembler**: NASM
 - **Linker**: LD (ELF format)
@@ -174,7 +311,7 @@ my-mini-os/
 - **Virtual address space**: 4GB
 - **Page sizes**: 4KB (small), 4MB (large)
 
-### 🚀 How to Build & Run
+### How to Build & Run
 ```bash
 # Build
 make build
@@ -189,15 +326,15 @@ make debug
 make clean
 ```
 
-### 📈 Development Progress
-- ✅ v0.1.0 - v0.2.0: Boot sector, real mode basics
-- ✅ v0.3.0: 32-bit protected mode, C kernel, basic drivers
-- ✅ v0.4.0: Memory isolation, large pages, page faults
-- ✅ v0.5.0: User permissions, VFS, ramfs, disk driver, FAT16
-- ⏳ v0.6.0: IPC, more drivers, FAT32
-- ⏳ v0.7.0: Network support
-- ⏳ v0.8.0: GUI
-- ⏳ v1.0.0: Stable release
+### Development Progress
+- [x] v0.1.0 - v0.2.0: Boot sector, real mode basics
+- [x] v0.3.0: 32-bit protected mode, C kernel, basic drivers
+- [x] v0.4.0: Memory isolation, large pages, page faults
+- [x] v0.5.0: User permissions, VFS, ramfs, disk driver, FAT16
+- [ ] v0.6.0: IPC, more drivers, FAT32
+- [ ] v0.7.0: Network support
+- [ ] v0.8.0: GUI
+- [ ] v1.0.0: Stable release
 
 ---
 

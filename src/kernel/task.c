@@ -500,3 +500,75 @@ void task_tick() {
         }
     }
 }
+
+/* ==========================================
+ * 根据 PID 查找进程
+ * ========================================== */
+task_t *task_find_by_pid(uint32_t pid)
+{
+    task_t *p = task_list;
+    while (p != NULL) {
+        if (p->pid == pid) {
+            return p;
+        }
+        p = p->next;
+    }
+    return NULL;
+}
+
+/* ==========================================
+ * 设置进程优先级
+ * ========================================== */
+int task_set_priority(uint32_t pid, uint32_t priority)
+{
+    task_t *task = task_find_by_pid(pid);
+    if (task == NULL) {
+        return -1;
+    }
+    
+    /* 限制优先级范围 0-10 */
+    if (priority > 10) {
+        priority = 10;
+    }
+    
+    task->priority = priority;
+    task->time_slice = DEFAULT_TIME_SLICE + priority * 5;
+    
+    /* 如果是当前进程，更新剩余时间片 */
+    if (task == current_task) {
+        if (task->remaining_time > task->time_slice) {
+            task->remaining_time = task->time_slice;
+        }
+    }
+    
+    return 0;
+}
+
+/* ==========================================
+ * 获取进程优先级
+ * ========================================== */
+int task_get_priority(uint32_t pid, uint32_t *priority)
+{
+    task_t *task = task_find_by_pid(pid);
+    if (task == NULL || priority == NULL) {
+        return -1;
+    }
+    
+    *priority = task->priority;
+    return 0;
+}
+
+/* ==========================================
+ * 进程状态转字符串
+ * ========================================== */
+const char *task_state_str(task_state_t state)
+{
+    switch (state) {
+        case TASK_RUNNING:  return "Running";
+        case TASK_READY:    return "Ready";
+        case TASK_BLOCKED:  return "Blocked";
+        case TASK_SLEEPING: return "Sleeping";
+        case TASK_ZOMBIE:   return "Zombie";
+        default:            return "Unknown";
+    }
+}
