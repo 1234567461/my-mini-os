@@ -16,6 +16,7 @@
 #include "task.h"
 #include "system.h"
 #include "klog.h"
+#include "user.h"
 
 /* 命令缓冲区大小 */
 #define CMD_BUF_SIZE 128
@@ -37,7 +38,8 @@ static const char *help_text =
     "  ps       - List running processes\n"
     "  uname    - Show system information\n"
     "  hostname - Show system hostname\n"
-    "  whoami   - Show current user\n"
+    "  whoami   - Show current user and permission level\n"
+    "  su       - Switch user (su <username> [password])\n"
     "  calc     - Simple calculator (calc <num1> <op> <num2>)\n"
     "  dmesg    - Show kernel boot log\n"
     "  reboot   - Reboot the system\n";
@@ -279,11 +281,86 @@ static void cmd_hostname(void)
 
 /* ==========================================
  * 函数：cmd_whoami
- * 功能：显示当前用户
+ * 功能：显示当前用户和权限级别
  * ========================================== */
 static void cmd_whoami(void)
 {
-    vga_puts("root\n");
+    const char *username = user_get_name();
+    user_level_t level = user_get_level();
+    const char *level_name = user_level_name(level);
+
+    vga_printf("User: %s\n", username);
+    vga_printf("Permission level: %s (%d)\n", level_name, level);
+
+    if (user_is_admin()) {
+        vga_set_color(VGA_COLOR_LIGHT_RED, VGA_COLOR_BLACK);
+        vga_puts("  [Admin privileges]\n");
+        vga_set_color(VGA_COLOR_WHITE, VGA_COLOR_BLACK);
+    }
+}
+
+/* ==========================================
+ * 函数：cmd_su
+ * 功能：切换用户
+ * ========================================== */
+static void cmd_su(const char *args)
+{
+    char username[32];
+    char password[32];
+    const char *p = args;
+
+    /* 跳过开头的空格 */
+    while (*p == ' ' || *p == '\t') {
+        p++;
+    }
+
+    /* 解析用户名 */
+    int i = 0;
+    while (*p && *p != ' ' && *p != '\t' && i < 31) {
+        username[i++] = *p++;
+    }
+    username[i] = '\0';
+
+    /* 如果没有用户名，默认切换到 root */
+    if (i == 0) {
+        strncpy(username, "root", 31);
+    }
+
+    /* 解析密码 */
+    while (*p == ' ' || *p == '\t') {
+        p++;
+    }
+
+    i = 0;
+    while (*p && *p != ' ' && *p != '\t' && i < 31) {
+        password[i++] = *p++;
+    }
+    password[i] = '\0';
+
+    /* 如果没有密码，提示输入（简化版：直接提示需要密码） */
+    if (i == 0) {
+        vga_puts("Password: ");
+        /* 注意：实际系统中应该关闭回显输入密码 */
+        /* 这里简化处理，直接读取一行作为密码 */
+        keyboard_gets(password, sizeof(password));
+    }
+
+    /* 执行切换 */
+    int result = user_su(username, password);
+
+    if (result == 0) {
+        vga_set_color(VGA_COLOR_LIGHT_GREEN, VGA_COLOR_BLACK);
+        vga_printf("Switched to user: %s\n", username);
+        vga_set_color(VGA_COLOR_WHITE, VGA_COLOR_BLACK);
+    } else if (result == -1) {
+        vga_set_color(VGA_COLOR_LIGHT_RED, VGA_COLOR_BLACK);
+        vga_printf("su: user '%s' does not exist\n", username);
+        vga_set_color(VGA_COLOR_WHITE, VGA_COLOR_BLACK);
+    } else if (result == -2) {
+        vga_set_color(VGA_COLOR_LIGHT_RED, VGA_COLOR_BLACK);
+        vga_puts("su: Authentication failure\n");
+        vga_set_color(VGA_COLOR_WHITE, VGA_COLOR_BLACK);
+    }
 }
 
 /* ==========================================
@@ -472,11 +549,29 @@ static void execute_command(const char *cmd)
         cmd_hostname();
     } else if (strcmp(cmd_name, "whoami") == 0) {
         cmd_whoami();
+    } else if (strcmp(cmd_name, "su") == 0) {
+        cmd_su(args);
     } else if (strcmp(cmd_name, "calc") == 0) {
         cmd_calc(args);
     } else if (strcmp(cmd_name, "dmesg") == 0) {
+        /* dmesg 需要管理员权限 */
+        if (!user_is_admin()) {
+            vga_set_color(VGA_COLOR_LIGHT_RED, VGA_COLOR_BLACK);
+            vga_puts("dmesg: Permission denied\n");
+            vga_set_color(VGA_COLOR_WHITE, VGA_COLOR_BLACK);
+            vga_puts("  (requires admin privileges, use 'su root' to switch)\n");
+            return;
+        }
         cmd_dmesg();
     } else if (strcmp(cmd_name, "reboot") == 0) {
+        /* reboot 需要管理员权限 */
+        if (!user_is_admin()) {
+            vga_set_color(VGA_COLOR_LIGHT_RED, VGA_COLOR_BLACK);
+            vga_puts("reboot: Permission denied\n");
+            vga_set_color(VGA_COLOR_WHITE, VGA_COLOR_BLACK);
+            vga_puts("  (requires admin privileges, use 'su root' to switch)\n");
+            return;
+        }
         cmd_reboot();
     } else {
         vga_set_color(VGA_COLOR_LIGHT_RED, VGA_COLOR_BLACK);
@@ -494,17 +589,25 @@ void shell_start(void)
 {
     char cmd_buf[CMD_BUF_SIZE];
 
+    /* 初始化用户系统 */
+    user_init();
+
     vga_puts("\n");
     vga_set_color(VGA_COLOR_LIGHT_GREEN, VGA_COLOR_BLACK);
     vga_puts("Shell is ready! Type 'help' for commands.\n");
     vga_set_color(VGA_COLOR_WHITE, VGA_COLOR_BLACK);
-    vga_puts("\n");
+    vga_printf("Logged in as: %s (type 'su root' to switch to admin)\n\n", user_get_name());
 
     while (1) {
-        /* 显示提示符 */
+        /* 显示提示符，根据用户权限显示不同符号 */
         vga_set_color(VGA_COLOR_LIGHT_GREEN, VGA_COLOR_BLACK);
-        vga_puts("mini-os> ");
+        vga_printf("%s@mini-os", user_get_name());
         vga_set_color(VGA_COLOR_WHITE, VGA_COLOR_BLACK);
+        if (user_is_admin()) {
+            vga_puts("# ");
+        } else {
+            vga_puts("$ ");
+        }
 
         /* 读取用户输入 */
         keyboard_gets(cmd_buf, CMD_BUF_SIZE);
