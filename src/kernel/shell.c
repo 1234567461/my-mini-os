@@ -17,6 +17,7 @@
 #include "system.h"
 #include "klog.h"
 #include "user.h"
+#include "vfs.h"
 
 /* 命令缓冲区大小 */
 #define CMD_BUF_SIZE 128
@@ -42,7 +43,14 @@ static const char *help_text =
     "  su       - Switch user (su <username> [password])\n"
     "  calc     - Simple calculator (calc <num1> <op> <num2>)\n"
     "  dmesg    - Show kernel boot log\n"
-    "  reboot   - Reboot the system\n";
+    "  reboot   - Reboot the system\n"
+    "  ls       - List directory contents\n"
+    "  cat      - Display file contents\n"
+    "  mkdir    - Create a directory\n"
+    "  rm       - Remove a file\n"
+    "  cd       - Change directory\n"
+    "  pwd      - Print working directory\n"
+    "  touch    - Create empty file\n";
 
 /* ==========================================
  * 函数：cmd_help
@@ -491,6 +499,161 @@ static void cmd_reboot(void)
 }
 
 /* ==========================================
+ * 函数：cmd_ls
+ * 功能：列出目录内容
+ * ========================================== */
+static void cmd_ls(const char *args)
+{
+    const char *path = args;
+    
+    /* 如果没有参数，列出当前目录 */
+    if (*path == '\0') {
+        path = ".";
+    }
+    
+    vfs_dirent_t dirents[64];
+    int count = vfs_readdir(path, dirents, 64);
+    
+    if (count < 0) {
+        vga_set_color(VGA_COLOR_LIGHT_RED, VGA_COLOR_BLACK);
+        vga_printf("ls: cannot access '%s': No such directory\n", path);
+        vga_set_color(VGA_COLOR_WHITE, VGA_COLOR_BLACK);
+        return;
+    }
+    
+    for (int i = 0; i < count; i++) {
+        if (dirents[i].type == VFS_DIR) {
+            /* 目录用蓝色显示 */
+            vga_set_color(VGA_COLOR_LIGHT_BLUE, VGA_COLOR_BLACK);
+        } else {
+            vga_set_color(VGA_COLOR_WHITE, VGA_COLOR_BLACK);
+        }
+        vga_printf("%s  ", dirents[i].name);
+    }
+    
+    vga_set_color(VGA_COLOR_WHITE, VGA_COLOR_BLACK);
+    vga_putc('\n');
+}
+
+/* ==========================================
+ * 函数：cmd_cat
+ * 功能：显示文件内容
+ * ========================================== */
+static void cmd_cat(const char *args)
+{
+    if (*args == '\0') {
+        vga_puts("Usage: cat <filename>\n");
+        return;
+    }
+    
+    vfs_file_t *file = vfs_open(args, VFS_O_RDONLY);
+    if (file == NULL) {
+        vga_set_color(VGA_COLOR_LIGHT_RED, VGA_COLOR_BLACK);
+        vga_printf("cat: %s: No such file\n", args);
+        vga_set_color(VGA_COLOR_WHITE, VGA_COLOR_BLACK);
+        return;
+    }
+    
+    char buf[512];
+    int bytes_read;
+    
+    while ((bytes_read = vfs_read(file, buf, sizeof(buf) - 1)) > 0) {
+        buf[bytes_read] = '\0';
+        vga_puts(buf);
+    }
+    
+    vfs_close(file);
+}
+
+/* ==========================================
+ * 函数：cmd_mkdir
+ * 功能：创建目录
+ * ========================================== */
+static void cmd_mkdir(const char *args)
+{
+    if (*args == '\0') {
+        vga_puts("Usage: mkdir <directory>\n");
+        return;
+    }
+    
+    int result = vfs_mkdir(args);
+    if (result < 0) {
+        vga_set_color(VGA_COLOR_LIGHT_RED, VGA_COLOR_BLACK);
+        vga_printf("mkdir: cannot create directory '%s'\n", args);
+        vga_set_color(VGA_COLOR_WHITE, VGA_COLOR_BLACK);
+    }
+}
+
+/* ==========================================
+ * 函数：cmd_rm
+ * 功能：删除文件
+ * ========================================== */
+static void cmd_rm(const char *args)
+{
+    if (*args == '\0') {
+        vga_puts("Usage: rm <filename>\n");
+        return;
+    }
+    
+    int result = vfs_unlink(args);
+    if (result < 0) {
+        vga_set_color(VGA_COLOR_LIGHT_RED, VGA_COLOR_BLACK);
+        vga_printf("rm: cannot remove '%s'\n", args);
+        vga_set_color(VGA_COLOR_WHITE, VGA_COLOR_BLACK);
+    }
+}
+
+/* ==========================================
+ * 函数：cmd_cd
+ * 功能：改变目录
+ * ========================================== */
+static void cmd_cd(const char *args)
+{
+    if (*args == '\0') {
+        /* 没有参数，回到根目录 */
+        vfs_chdir("/");
+        return;
+    }
+    
+    int result = vfs_chdir(args);
+    if (result < 0) {
+        vga_set_color(VGA_COLOR_LIGHT_RED, VGA_COLOR_BLACK);
+        vga_printf("cd: %s: No such directory\n", args);
+        vga_set_color(VGA_COLOR_WHITE, VGA_COLOR_BLACK);
+    }
+}
+
+/* ==========================================
+ * 函数：cmd_pwd
+ * 功能：显示当前工作目录
+ * ========================================== */
+static void cmd_pwd(void)
+{
+    vga_puts(vfs_getcwd());
+    vga_putc('\n');
+}
+
+/* ==========================================
+ * 函数：cmd_touch
+ * 功能：创建空文件
+ * ========================================== */
+static void cmd_touch(const char *args)
+{
+    if (*args == '\0') {
+        vga_puts("Usage: touch <filename>\n");
+        return;
+    }
+    
+    int result = vfs_create(args);
+    if (result < 0) {
+        /* 如果文件已存在，不报错（和 Unix 行为一致） */
+        vga_set_color(VGA_COLOR_LIGHT_RED, VGA_COLOR_BLACK);
+        vga_printf("touch: cannot create '%s'\n", args);
+        vga_set_color(VGA_COLOR_WHITE, VGA_COLOR_BLACK);
+    }
+}
+
+/* ==========================================
  * 函数：execute_command
  * 功能：执行一条命令
  * ========================================== */
@@ -573,6 +736,20 @@ static void execute_command(const char *cmd)
             return;
         }
         cmd_reboot();
+    } else if (strcmp(cmd_name, "ls") == 0) {
+        cmd_ls(args);
+    } else if (strcmp(cmd_name, "cat") == 0) {
+        cmd_cat(args);
+    } else if (strcmp(cmd_name, "mkdir") == 0) {
+        cmd_mkdir(args);
+    } else if (strcmp(cmd_name, "rm") == 0) {
+        cmd_rm(args);
+    } else if (strcmp(cmd_name, "cd") == 0) {
+        cmd_cd(args);
+    } else if (strcmp(cmd_name, "pwd") == 0) {
+        cmd_pwd();
+    } else if (strcmp(cmd_name, "touch") == 0) {
+        cmd_touch(args);
     } else {
         vga_set_color(VGA_COLOR_LIGHT_RED, VGA_COLOR_BLACK);
         vga_printf("Command not found: %s\n", cmd_name);

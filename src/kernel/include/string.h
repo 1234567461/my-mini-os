@@ -23,6 +23,7 @@ int strncmp(const char *s1, const char *s2, size_t n);
 
 /* 字符查找 */
 char *strchr(const char *str, char c);
+char *strrchr(const char *str, char c);
 
 /* 字符串转数字 */
 int atoi(const char *str);

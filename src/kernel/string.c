@@ -76,6 +76,21 @@ char *strchr(const char *str, char c) {
     return NULL;
 }
 
+/* 从后向前查找字符 */
+char *strrchr(const char *str, char c) {
+    const char *last = NULL;
+    while (*str) {
+        if (*str == c) {
+            last = str;
+        }
+        str++;
+    }
+    if (c == '\0') {
+        return (char *)str;
+    }
+    return (char *)last;
+}
+
 /* 字符串转整数 */
 int atoi(const char *str) {
     int result = 0;

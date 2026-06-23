@@ -18,6 +18,8 @@
 #include "heap.h"
 #include "task.h"
 #include "klog.h"
+#include "vfs.h"
+#include "ramfs.h"
 
 /* ==========================================
  * 函数：kernel_main
@@ -78,6 +80,18 @@ void kernel_main(void)
     vga_puts("  [✓] Task Scheduler (Round Robin)\n");
     klog_log("task", "Task scheduler initialized (Round Robin, 64 tasks max)");
     klog_log("task", "Idle task created (PID 0)");
+
+    /* 初始化文件系统 */
+    vga_puts("  [✓] Virtual File System (VFS)\n");
+    klog_log("fs", "Initializing virtual file system");
+    vfs_init();
+    
+    vfs_filesystem_t *ramfs = ramfs_init();
+    if (ramfs != NULL) {
+        vfs_mount_root(ramfs);
+        vga_puts("  [✓] RAM File System (ramfs) mounted as root\n");
+        klog_log("fs", "RAM filesystem mounted as root filesystem");
+    }
 
     vga_putc('\n');
 
