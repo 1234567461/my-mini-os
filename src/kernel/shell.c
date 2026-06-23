@@ -18,6 +18,7 @@
 #include "klog.h"
 #include "user.h"
 #include "vfs.h"
+#include "rtc.h"
 
 /* 命令缓冲区大小 */
 #define CMD_BUF_SIZE 128
@@ -33,7 +34,7 @@ static const char *help_text =
     "  about    - About My Mini OS\n"
     "  uptime   - Show system uptime\n"
     "  color    - Change text color (color <fg> <bg>)\n"
-    "  date     - Show system ticks\n"
+    "  date     - Show current date and time\n"
     "  version  - Show OS version\n"
     "  meminfo  - Show memory usage information\n"
     "  ps       - List running processes\n"
@@ -701,7 +702,21 @@ static void execute_command(const char *cmd)
     } else if (strcmp(cmd_name, "color") == 0) {
         cmd_color(args);
     } else if (strcmp(cmd_name, "date") == 0) {
-        vga_printf("System ticks: %d\n", pit_get_ticks());
+        rtc_time_t time;
+        if (rtc_get_time(&time) == 0) {
+            char time_str[32];
+            char date_str[32];
+            rtc_format_time(&time, time_str, sizeof(time_str));
+            rtc_format_date(&time, date_str, sizeof(date_str));
+            
+            const char *weekday = rtc_get_weekday_name(time.weekday);
+            const char *month = rtc_get_month_name(time.month);
+            
+            vga_printf("%s, %s %d, %d  %s\n", 
+                      weekday, month, time.day, time.year, time_str);
+        } else {
+            vga_puts("Error: Cannot read RTC time\n");
+        }
     } else if (strcmp(cmd_name, "meminfo") == 0) {
         cmd_meminfo();
     } else if (strcmp(cmd_name, "ps") == 0) {
