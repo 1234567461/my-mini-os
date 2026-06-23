@@ -92,7 +92,7 @@ void kernel_main(void)
 
     /* 初始化内核日志系统（最早初始化） */
     klog_init();
-    klog_log("boot", "My Mini OS v0.5.0 starting up...");
+    klog_log("boot", "My Mini OS v0.6.0 starting up...");
     klog_log("boot", "Kernel loaded at 0x20000");
 
     /* 显示标题 */
@@ -108,7 +108,7 @@ void kernel_main(void)
 
     /* 显示系统信息 */
     vga_set_color(VGA_COLOR_LIGHT_CYAN, VGA_COLOR_BLACK);
-    vga_puts("My Mini OS v0.5.0\n");
+    vga_puts("My Mini OS v0.6.0\n");
     vga_set_color(VGA_COLOR_WHITE, VGA_COLOR_BLACK);
     vga_puts("32-bit Protected Mode Kernel\n");
     vga_puts("Memory: 128MB physical, 4MB large page support\n");
@@ -137,8 +137,8 @@ void kernel_main(void)
 
     /* 初始化进程调度器 */
     task_init();
-    vga_puts("  [✓] Task Scheduler (Round Robin)\n");
-    klog_log("task", "Task scheduler initialized (Round Robin, 64 tasks max)");
+    vga_puts("  [✓] Task Scheduler (Priority-based)\n");
+    klog_log("task", "Task scheduler initialized (Priority-based, 64 tasks max)");
     klog_log("task", "Idle task created (PID 0)");
 
     /* 初始化文件系统 */
