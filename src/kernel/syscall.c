@@ -15,6 +15,8 @@
 #include "keyboard.h"
 #include "string.h"
 #include "types.h"
+#include "elf.h"
+#include "heap.h"
 
 /* 系统调用函数指针类型 */
 typedef int (*syscall_func_t)(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t);
@@ -61,7 +63,15 @@ static int sys_write(uint32_t fd, uint32_t buf, uint32_t count, uint32_t arg4, u
         return count;
     }
     
-    /* 其他文件描述符暂时不支持 */
+    /* 普通文件写入 */
+    task_t *current = get_current_task();
+    if (current != NULL && fd >= 3 && fd < MAX_FDS) {
+        vfs_file_t *file = current->files[fd];
+        if (file != NULL) {
+            return vfs_write(file, buffer, count);
+        }
+    }
+    
     return -1;
 }
 
@@ -97,40 +107,105 @@ static int sys_read(uint32_t fd, uint32_t buf, uint32_t count, uint32_t arg4, ui
         return 1;
     }
     
-    /* 其他文件描述符暂时不支持 */
+    /* 普通文件读取 */
+    task_t *current = get_current_task();
+    if (current != NULL && fd >= 3 && fd < MAX_FDS) {
+        vfs_file_t *file = current->files[fd];
+        if (file != NULL) {
+            return vfs_read(file, buffer, count);
+        }
+    }
+    
     return -1;
 }
 
 /* ==========================================
  * 函数：sys_open
- * 功能：打开文件（暂时未实现）
+ * 功能：打开文件
+ * 参数：
+ *   pathname - 文件路径
+ *   flags - 打开标志
+ * 返回：文件描述符，失败返回-1
  * ========================================== */
 static int sys_open(uint32_t pathname, uint32_t flags, uint32_t arg3, uint32_t arg4, uint32_t arg5)
 {
-    (void)pathname;
-    (void)flags;
     (void)arg3;
     (void)arg4;
     (void)arg5;
     
-    /* 暂时未实现 */
-    return -1;
+    const char *path = (const char *)pathname;
+    if (path == NULL) {
+        return -1;
+    }
+    
+    task_t *current = get_current_task();
+    if (current == NULL) {
+        return -1;
+    }
+    
+    /* 打开文件 */
+    vfs_file_t *file = vfs_open(path, flags);
+    if (file == NULL) {
+        return -1;
+    }
+    
+    /* 找到空闲的文件描述符（从3开始，0-2是标准输入输出） */
+    int fd = -1;
+    for (int i = 3; i < MAX_FDS; i++) {
+        if (current->files[i] == NULL) {
+            fd = i;
+            break;
+        }
+    }
+    
+    if (fd == -1) {
+        /* 没有空闲的文件描述符 */
+        vfs_close(file);
+        return -1;
+    }
+    
+    /* 存入文件描述符表 */
+    current->files[fd] = file;
+    
+    return fd;
 }
 
 /* ==========================================
  * 函数：sys_close
- * 功能：关闭文件（暂时未实现）
+ * 功能：关闭文件
+ * 参数：
+ *   fd - 文件描述符
+ * 返回：0=成功，-1=失败
  * ========================================== */
 static int sys_close(uint32_t fd, uint32_t arg2, uint32_t arg3, uint32_t arg4, uint32_t arg5)
 {
-    (void)fd;
     (void)arg2;
     (void)arg3;
     (void)arg4;
     (void)arg5;
     
-    /* 暂时未实现 */
-    return -1;
+    task_t *current = get_current_task();
+    if (current == NULL) {
+        return -1;
+    }
+    
+    /* 检查文件描述符是否有效 */
+    if (fd < 3 || fd >= MAX_FDS) {
+        return -1;
+    }
+    
+    vfs_file_t *file = current->files[fd];
+    if (file == NULL) {
+        return -1;
+    }
+    
+    /* 关闭文件 */
+    int ret = vfs_close(file);
+    
+    /* 清空文件描述符表 */
+    current->files[fd] = NULL;
+    
+    return ret;
 }
 
 /* ==========================================
@@ -223,6 +298,121 @@ static int sys_brk(uint32_t addr, uint32_t arg2, uint32_t arg3, uint32_t arg4, u
 }
 
 /* ==========================================
+ * 函数：sys_execve
+ * 功能：执行程序（简化版）
+ * 参数：
+ *   pathname - 可执行文件路径
+ *   argv - 参数列表
+ *   envp - 环境变量列表
+ * 返回：成功不返回，失败返回-1
+ * ========================================== */
+static int sys_execve(uint32_t pathname, uint32_t argv, uint32_t envp, uint32_t arg4, uint32_t arg5)
+{
+    (void)argv;
+    (void)envp;
+    (void)arg4;
+    (void)arg5;
+    
+    const char *path = (const char *)pathname;
+    if (path == NULL) {
+        return -1;
+    }
+    
+    task_t *current = get_current_task();
+    if (current == NULL) {
+        return -1;
+    }
+    
+    /* 打开 ELF 文件 */
+    vfs_file_t *file = vfs_open(path, VFS_O_RDONLY);
+    if (file == NULL) {
+        return -1;
+    }
+    
+    /* 读取 ELF 文件到内存（简化版：假设文件不大） */
+    uint32_t file_size = file->size;
+    if (file_size == 0 || file_size > 1024 * 1024) {  /* 最大 1MB */
+        vfs_close(file);
+        return -1;
+    }
+    
+    void *elf_data = kmalloc(file_size);
+    if (elf_data == NULL) {
+        vfs_close(file);
+        return -1;
+    }
+    
+    int read_bytes = vfs_read(file, elf_data, file_size);
+    vfs_close(file);
+    
+    if (read_bytes != (int)file_size) {
+        kfree(elf_data);
+        return -1;
+    }
+    
+    /* 加载 ELF 可执行文件 */
+    uint32_t entry_point;
+    if (elf_load_executable(elf_data, &entry_point) != 0) {
+        kfree(elf_data);
+        return -1;
+    }
+    
+    /* 简化版：直接跳转到入口点
+     * 真正的 execve 需要设置用户栈、参数等
+     * 这里我们直接修改当前进程的 eip */
+    current->context.eip = entry_point;
+    
+    /* 释放 ELF 数据（实际应该在加载后释放） */
+    kfree(elf_data);
+    
+    /* 注意：这是简化版，真正的 execve 不会返回
+     * 但由于我们的实现方式，这里会返回 0 */
+    return 0;
+}
+
+/* ==========================================
+ * 函数：sys_waitpid
+ * 功能：等待子进程退出（简化版）
+ * 参数：
+ *   pid - 子进程PID
+ *   status - 状态指针
+ *   options - 选项
+ * 返回：子进程PID，失败返回-1
+ * ========================================== */
+static int sys_waitpid(uint32_t pid, uint32_t status, uint32_t options, uint32_t arg4, uint32_t arg5)
+{
+    (void)options;
+    (void)arg4;
+    (void)arg5;
+    
+    task_t *current = get_current_task();
+    if (current == NULL) {
+        return -1;
+    }
+    
+    /* 简化版：查找僵尸进程并回收 */
+    task_t *task = get_task_list();
+    while (task != NULL) {
+        if (task->state == TASK_ZOMBIE) {
+            if (pid == -1 || task->pid == pid) {
+                /* 回收进程资源（简化版） */
+                int exit_status = 0;
+                if (status != 0) {
+                    *(int *)status = exit_status;
+                }
+                
+                /* 简化版：这里只是返回PID，实际应该释放进程资源 */
+                return task->pid;
+            }
+        }
+        task = task->next;
+    }
+    
+    /* 没有找到僵尸进程 */
+    return -1;
+}
+
+/* ==========================================
  * 函数：syscall_handler
  * 功能：系统调用中断处理函数
  * 说明：
@@ -263,6 +453,8 @@ void syscall_init(void)
     syscall_table[SYS_CLOSE] = (syscall_func_t)sys_close;
     syscall_table[SYS_GETPID] = (syscall_func_t)sys_getpid;
     syscall_table[SYS_BRK] = (syscall_func_t)sys_brk;
+    syscall_table[SYS_EXECVE] = (syscall_func_t)sys_execve;
+    syscall_table[SYS_WAITPID] = (syscall_func_t)sys_waitpid;
     
     /* 注册中断处理程序（ISR 0x80） */
     isr_register_handler(0x80, syscall_handler);

@@ -11,6 +11,9 @@
 #include "types.h"
 #include "paging.h"
 
+#include "vfs.h"
+n/* 最大文件描述符数 */
+#define MAX_FDS  32
 /* 进程状态 */
 typedef enum {
     TASK_RUNNING,    /* 运行中 */
@@ -59,6 +62,7 @@ typedef struct task_struct {
     uint32_t *kernel_stack;          /* 内核栈底指针 */
     uint32_t kernel_stack_size;      /* 内核栈大小 */
     
+    vfs_file_t *files[MAX_FDS];    /* 文件描述符表 */
     page_directory_t *page_dir;      /* 进程页目录（地址空间） */
     user_space_t user_space;         /* 用户空间信息 */
     

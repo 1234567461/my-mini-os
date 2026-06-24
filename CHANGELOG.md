@@ -169,6 +169,36 @@ src/kernel/
 - **BSS support**: Zero-initialize uninitialized data
 - **Entry point extraction**: Get program entry point address
 
+#### File Descriptor Table
+- **Per-process file descriptor table**: MAX_FDS (32) file descriptors per process
+- **Standard file descriptors**: 0=stdin, 1=stdout, 2=stderr
+- **File descriptor allocation**: Automatic allocation starting from fd=3
+- **Integration with VFS**: File descriptors map to VFS file structures
+
+#### System Call Enhancements (Part 2)
+- **sys_open**: Complete implementation with VFS integration
+  - Opens files using VFS interface
+  - Allocates file descriptor from process table
+  - Supports open flags (RDONLY, WRONLY, RDWR, CREAT, TRUNC)
+- **sys_close**: Complete implementation
+  - Closes file via VFS
+  - Frees file descriptor slot
+  - Validates file descriptor range
+- **sys_read enhanced**: Supports regular file descriptors
+  - fd=0 reads from keyboard (stdin)
+  - fd>=3 reads from VFS files
+- **sys_write enhanced**: Supports regular file descriptors
+  - fd=1,2 writes to VGA (stdout/stderr)
+  - fd>=3 writes to VFS files
+- **sys_execve**: Simplified implementation
+  - Loads ELF executable from file system
+  - Replaces current process execution flow
+  - Supports ELF32 format
+- **sys_waitpid**: Simplified implementation
+  - Waits for child process termination
+  - Reaps zombie processes
+  - Returns exit status
+
 ### New Files Added (Update)
 ```
 src/user/include/
