@@ -64,7 +64,14 @@ static const char *help_text =
     "  touch      - Create empty file\n"
     "  partitions - Show disk partition table\n"
     "  mouse      - Show mouse status\n"
-    "  serial     - Serial port test\n";
+    "  serial     - Serial port test\n"
+    "  exec       - Execute external program\n"
+    "  run        - Run a script file\n"
+    "  ifconfig   - Show/configure network interface\n"
+    "  ping       - Ping a host\n"
+    "  arp        - Show ARP cache\n"
+    "  dhcp       - DHCP client status/request\n"
+    "  netstat    - Show network statistics\n";
 
 /* ==========================================
  * 函数：cmd_help
@@ -775,6 +782,10 @@ static void cmd_gui(void)
     vga_set_color(VGA_COLOR_WHITE, VGA_COLOR_BLACK);
 }
 
+/* 外部函数声明 */
+extern int sys_execve(const char *filename, const char *argv[]);
+extern int sys_waitpid(int pid, int *status, int options);
+
 /* ==========================================
  * 函数：cmd_exec
  * 功能：执行外部程序
@@ -831,6 +842,91 @@ static void cmd_exec(const char *args)
     }
 }
 
+/* 前向声明 */
+static void execute_command(const char *cmd);
+
+/* ==========================================
+ * 函数：cmd_run
+ * 功能：执行脚本文件
+ * 用法：run <script_file>
+ * 支持简单的文本脚本，每行一条命令
+ * 注释以 # 开头
+ * ========================================== */
+static void cmd_run(const char *args)
+{
+    if (*args == '\0') {
+        vga_puts("Usage: run <script_file>\n");
+        vga_puts("  Execute a script file line by line.\n");
+        vga_puts("  Lines starting with # are treated as comments.\n");
+        return;
+    }
+
+    /* 打开脚本文件 */
+    vfs_file_t *file = vfs_open(args, VFS_O_RDONLY);
+    if (file == NULL) {
+        vga_set_color(VGA_COLOR_LIGHT_RED, VGA_COLOR_BLACK);
+        vga_printf("run: cannot open '%s': No such file\n", args);
+        vga_set_color(VGA_COLOR_WHITE, VGA_COLOR_BLACK);
+        return;
+    }
+
+    vga_set_color(VGA_COLOR_CYAN, VGA_COLOR_BLACK);
+    vga_printf("Running script: %s\n", args);
+    vga_set_color(VGA_COLOR_WHITE, VGA_COLOR_BLACK);
+
+    char line_buf[256];
+    int line_num = 0;
+    int error_count = 0;
+
+    /* 逐行读取并执行 */
+    while (1) {
+        line_num++;
+        int bytes_read = vfs_read(file, line_buf, sizeof(line_buf) - 1);
+        if (bytes_read <= 0) {
+            break;
+        }
+        line_buf[bytes_read] = '\0';
+
+        /* 处理每一行 */
+        char *p = line_buf;
+        while (*p) {
+            /* 找到行尾或换行符 */
+            char *line_end = p;
+            while (*line_end && *line_end != '\n' && *line_end != '\r') {
+                line_end++;
+            }
+            *line_end = '\0';
+
+            /* 跳过前导空格 */
+            char *cmd_start = p;
+            while (*cmd_start == ' ' || *cmd_start == '\t') {
+                cmd_start++;
+            }
+
+            /* 跳过空行和注释行 */
+            if (*cmd_start != '\0' && *cmd_start != '#') {
+                vga_set_color(VGA_COLOR_LIGHT_GREY, VGA_COLOR_BLACK);
+                vga_printf("[%s:%d] $ %s\n", args, line_num, cmd_start);
+                vga_set_color(VGA_COLOR_WHITE, VGA_COLOR_BLACK);
+
+                /* 执行命令 */
+                execute_command(cmd_start);
+            }
+
+            /* 移动到下一行 */
+            p = line_end + 1;
+            if (*p == '\n') p++;  /* 跳过LF */
+            if (*p == '\r') p++;  /* 跳过CR */
+        }
+    }
+
+    vfs_close(file);
+
+    vga_set_color(VGA_COLOR_CYAN, VGA_COLOR_BLACK);
+    vga_printf("Script finished. Errors: %d\n", error_count);
+    vga_set_color(VGA_COLOR_WHITE, VGA_COLOR_BLACK);
+}
+
 /* ==========================================
  * 函数：execute_command
  * 功能：执行一条命令
@@ -880,6 +976,8 @@ static void execute_command(const char *cmd)
         cmd_color(args);
     } else if (strcmp(cmd_name, "exec") == 0) {
         cmd_exec(args);
+    } else if (strcmp(cmd_name, "run") == 0) {
+        cmd_run(args);
     } else if (strcmp(cmd_name, "date") == 0) {
         rtc_time_t time;
         rtc_get_time(&time);

@@ -326,8 +326,8 @@ src/kernel/
 - [x] v0.4.0: Memory isolation, large pages, page faults
 - [x] v0.5.0: User permissions, VFS, ramfs, disk driver, FAT16
 - [x] v0.6.0: IPC, device drivers (serial/RTC/mouse), FAT32, MBR, ELF loader, user lib
-- [ ] v0.7.0: Network support
-- [ ] v0.8.0: GUI
+- [x] v0.7.0: Network support (TCP/IP, ARP, DHCP, UDP, ICMP, NE2000 driver)
+- [x] v0.8.0: GUI (window manager, event system, graphics engine, taskbar, controls)
 - [ ] v1.0.0: Stable release
 
 ---
@@ -523,9 +523,9 @@ make clean
 - [x] v0.3.0: 32-bit protected mode, C kernel, basic drivers
 - [x] v0.4.0: Memory isolation, large pages, page faults
 - [x] v0.5.0: User permissions, VFS, ramfs, disk driver, FAT16
-- [ ] v0.6.0: IPC, more drivers, FAT32
-- [ ] v0.7.0: Network support
-- [ ] v0.8.0: GUI
+- [x] v0.6.0: IPC, more drivers, FAT32
+- [x] v0.7.0: Network support
+- [x] v0.8.0: GUI
 - [ ] v1.0.0: Stable release
 
 ---
