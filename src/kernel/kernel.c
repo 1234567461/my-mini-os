@@ -99,7 +99,7 @@ void kernel_main(void)
 
     /* 初始化内核日志系统（最早初始化） */
     klog_init();
-    klog_log("boot", "My Mini OS v0.6.0 starting up...");
+    klog_log("boot", "My Mini OS v0.7.0 starting up...");
     klog_log("boot", "Kernel loaded at 0x20000");
 
     /* 显示标题 */

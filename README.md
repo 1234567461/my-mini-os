@@ -382,6 +382,22 @@ my-mini-os/
 │       ├── block.c               # 块设备层实现
 │       ├── ata.c                 # ATA/IDE磁盘驱动实现
 │       ├── fat16.c               # FAT16文件系统实现
+│       ├── fat32.c               # FAT32文件系统实现
+│       ├── mbr.c                 # MBR分区表实现
+│       ├── ipc.c                 # 进程间通信实现
+│       ├── serial.c              # 串口驱动实现
+│       ├── rtc.c                 # 实时时钟驱动实现
+│       ├── mouse.c               # PS/2鼠标驱动实现
+│       ├── elf.c                 # ELF文件加载器实现
+│       ├── network.c             # 网络基础实现
+│       ├── ne2000.c              # NE2000网卡驱动实现
+│       ├── arp.c                 # ARP协议实现
+│       ├── ip.c                  # IP协议实现
+│       ├── icmp.c                # ICMP协议实现
+│       ├── udp.c                 # UDP协议实现
+│       ├── tcp.c                 # TCP协议实现
+│       ├── socket.c              # Socket API实现
+│       ├── dhcp.c                # DHCP客户端实现
 │       ├── syscall.c             # 系统调用实现
 │       └── legacy/               # 旧代码备份
 │           ├── fs.c
@@ -507,10 +523,75 @@ my-mini-os/
   - [x] ELF32文件格式解析
   - [x] 可执行文件加载
   - [x] 程序段加载和BSS清零
+- [x] **文件描述符表**
+  - [x] 每进程文件描述符表（MAX_FDS=32）
+  - [x] 标准文件描述符（stdin/stdout/stderr）
+  - [x] 与VFS集成
+- [x] **系统调用增强（Part 2）**
+  - [x] sys_open - 完整实现（VFS集成）
+  - [x] sys_close - 完整实现
+  - [x] sys_execve - 执行程序（简化版，ELF加载）
+  - [x] sys_waitpid - 等待子进程（简化版）
 
+### 第五阶段 ✅：网络支持（v0.7.0）
+**里程碑**：实现网卡驱动和完整的TCP/IP协议栈
+- [x] **NE2000网卡驱动**
+  - [x] NE2000兼容网卡初始化
+  - [x] 数据包发送和接收
+  - [x] 中断驱动处理
+  - [x] MAC地址读取（从PROM）
+  - [x] 支持QEMU的ne2k_pci和ne2k_isa
+- [x] **网络基础架构**
+  - [x] 网络接口管理
+  - [x] 以太网帧封装/解封装
+  - [x] 网络字节序转换（大端/小端）
+  - [x] 网络缓冲区管理
+- [x] **ARP协议**
+  - [x] ARP缓存管理（32条目）
+  - [x] ARP请求/响应处理
+  - [x] IP到MAC地址解析
+  - [x] ARP缓存超时机制
+- [x] **IP协议**
+  - [x] IPv4数据包封装/解封装
+  - [x] IP校验和计算
+  - [x] IP路由决策（本地/网关）
+  - [x] IP标识符管理
+- [x] **ICMP协议**
+  - [x] ICMP Echo请求/响应（ping）
+  - [x] ICMP错误消息（目标不可达、TTL超时）
+  - [x] Ping统计（RTT、丢包率）
+- [x] **UDP协议**
+  - [x] UDP数据包封装/解封装
+  - [x] UDP端口管理（64个端口）
+  - [x] UDP校验和计算
+  - [x] 端口监听和回调机制
+- [x] **TCP协议（简化版）**
+  - [x] TCP连接管理（三次握手/四次挥手）
+  - [x] TCP状态机（11种状态）
+  - [x] 序列号和确认号管理
+  - [x] 流量控制（滑动窗口）
+  - [x] 超时重传机制（指数退避）
+  - [x] 最大连接数管理（16个连接）
+- [x] **Socket API**
+  - [x] BSD Socket风格接口
+  - [x] TCP/UDP Socket支持
+  - [x] 连接、绑定、监听、接受
+  - [x] 发送/接收数据（send/recv/sendto/recvfrom）
+  - [x] 非阻塞模式
+  - [x] Socket选项配置
+- [x] **DHCP客户端**
+  - [x] DHCP Discover/Offer/Request/ACK流程
+  - [x] 自动获取IP地址
+  - [x] 子网掩码、网关、DNS获取
+  - [x] 租约管理和续约
+- [x] **Shell网络命令**
+  - [x] ifconfig - 显示/配置网络接口
+  - [x] ping - 测试网络连通性
+  - [x] arp - 查看ARP缓存
+  - [x] dhcp - DHCP状态和请求
+  - [x] netstat - 网络统计信息
 
 ### 后续展望
-- **v0.7.0**：网络支持（网卡驱动 + TCP/IP 协议栈）
 - **v0.8.0**：图形界面（VESA + 窗口系统）
 - **v0.9.0**：性能优化（虚拟内存换页、调度优化）
 - **v1.0.0**：稳定版本（POSIX 兼容、完善文档）

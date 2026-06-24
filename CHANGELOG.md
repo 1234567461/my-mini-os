@@ -1,6 +1,111 @@
 # Changelog
 All notable changes to this project will be documented in this file.
 
+## [v0.7.0] - 2026-06-24
+### Overview
+v0.7.0 is a major release that adds complete network support including NE2000 network card driver and a full TCP/IP protocol stack. This version enables the mini OS to communicate over the network.
+
+### New Features
+
+#### NE2000 Network Card Driver
+- **NE2000 compatible NIC initialization**: Full hardware detection and initialization
+- **Packet send and receive**: Ethernet frame transmission and reception
+- **Interrupt-driven**: IRQ-based packet processing
+- **MAC address reading**: Read from PROM/EEPROM
+- **QEMU support**: Compatible with ne2k_pci and ne2k_isa emulated NICs
+
+#### Network Infrastructure
+- **Network interface management**: Abstract network interface with statistics tracking
+- **Ethernet frame handling**: Frame encapsulation and decapsulation
+- **Byte order conversion**: Network byte order (big-endian) <-> Host byte order (little-endian)
+- **Network buffer management**: Efficient packet buffer allocation
+
+#### ARP Protocol
+- **ARP cache management**: 32-entry cache with timeout mechanism
+- **ARP request/reply handling**: Automatic address resolution
+- **IP to MAC resolution**: Transparent address resolution for IP layer
+
+#### IP Protocol
+- **IPv4 packet handling**: Full packet encapsulation and decapsulation
+- **Checksum calculation**: IP header checksum computation
+- **Routing decision**: Local subnet vs gateway routing
+- **IP ID management**: Unique packet identification
+
+#### ICMP Protocol
+- **ICMP Echo (ping)**: Full ping implementation with statistics
+- **ICMP error messages**: Destination unreachable, TTL exceeded
+- **RTT measurement**: Round-trip time tracking
+
+#### UDP Protocol
+- **UDP packet handling**: Encapsulation and decapsulation
+- **Port management**: Up to 64 concurrent port bindings
+- **Checksum calculation**: UDP checksum with pseudo-header
+- **Callback mechanism**: Event-driven packet handling
+
+#### TCP Protocol (Simplified)
+- **Connection management**: Three-way handshake and four-way teardown
+- **State machine**: Full 11-state TCP state machine
+- **Sequence numbers**: Reliable data transfer with sequencing
+- **Flow control**: Sliding window mechanism
+- **Retransmission**: Timeout-based retransmission with exponential backoff
+- **Connection pool**: Up to 16 concurrent connections
+
+#### Socket API
+- **BSD Socket interface**: Familiar socket programming API
+- **TCP/UDP support**: Both stream and datagram sockets
+- **Full socket operations**: socket, bind, listen, accept, connect, send, recv, close
+- **Non-blocking mode**: Asynchronous operation support
+- **Socket options**: Configurable socket parameters
+
+#### DHCP Client
+- **DHCP protocol**: Full Discover-Offer-Request-ACK flow
+- **Auto IP configuration**: Automatic IP address acquisition
+- **Network parameters**: Subnet mask, gateway, DNS server
+- **Lease management**: Automatic lease renewal
+
+#### Shell Network Commands
+- **ifconfig**: Display and configure network interface
+- **ping**: Test network connectivity with statistics
+- **arp**: View ARP cache table
+- **dhcp**: DHCP status and manual IP request
+- **netstat**: Display network statistics
+
+### New Files Added
+```
+src/kernel/include/
+├── network.h       # Network infrastructure
+├── ne2000.h        # NE2000 network card driver
+├── arp.h           # ARP protocol
+├── ip.h            # IP protocol
+├── icmp.h          # ICMP protocol
+├── udp.h           # UDP protocol
+├── tcp.h           # TCP protocol
+├── socket.h        # Socket API
+└── dhcp.h          # DHCP client
+
+src/kernel/
+├── network.c       # Network infrastructure
+├── ne2000.c        # NE2000 network card driver
+├── arp.c           # ARP protocol
+├── ip.c            # IP protocol
+├── icmp.c          # ICMP protocol
+├── udp.c           # UDP protocol
+├── tcp.c           # TCP protocol
+├── socket.c        # Socket API
+└── dhcp.c          # DHCP client
+```
+
+### Technical Details
+- **Network Card**: NE2000 compatible (I/O base 0x300, IRQ 11)
+- **Protocol Stack**: TCP/IP with ARP, ICMP, UDP, TCP
+- **MTU**: 1500 bytes (standard Ethernet)
+- **TCP MSS**: 1460 bytes
+- **Max Connections**: 16 concurrent TCP connections
+- **UDP Ports**: 64 concurrent port bindings
+- **ARP Cache**: 32 entries with 300-second timeout
+
+---
+
 ## [v0.6.0] - 2026-06-23
 ### Overview
 v0.6.0 is a major release that adds comprehensive device driver support, FAT32 file system, MBR partition table parsing, and inter-process communication (IPC). This version significantly expands the hardware support and process management capabilities of the operating system.

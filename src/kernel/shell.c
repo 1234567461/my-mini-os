@@ -22,6 +22,12 @@
 #include "mbr.h"
 #include "mouse.h"
 #include "serial.h"
+#include "network.h"
+#include "ne2000.h"
+#include "arp.h"
+#include "ip.h"
+#include "icmp.h"
+#include "dhcp.h"
 
 /* 命令缓冲区大小 */
 #define CMD_BUF_SIZE 128
@@ -746,6 +752,180 @@ static void cmd_serial(const char *args)
 }
 
 /* ==========================================
+ * 网络命令实现
+ * ========================================== */
+
+/* ==========================================
+ * 函数：cmd_ifconfig
+ * 功能：显示/配置网络接口
+ * ========================================== */
+static void cmd_ifconfig(const char *args)
+{
+    net_interface_t *iface = net_get_default_interface();
+    if (iface == NULL) {
+        vga_set_color(VGA_COLOR_LIGHT_RED, VGA_COLOR_BLACK);
+        vga_puts("No network interface available\n");
+        vga_set_color(VGA_COLOR_WHITE, VGA_COLOR_BLACK);
+        return;
+    }
+    
+    char ip_buf[16];
+    
+    vga_set_color(VGA_COLOR_LIGHT_CYAN, VGA_COLOR_BLACK);
+    vga_puts("Network Interface: eth0\n");
+    vga_set_color(VGA_COLOR_WHITE, VGA_COLOR_BLACK);
+    vga_puts("========================\n\n");
+    
+    vga_printf("Status:     %s\n", iface->state == NET_IF_UP ? "UP" : "DOWN");
+    vga_printf("MAC:        %02x:%02x:%02x:%02x:%02x:%02x\n", mac_format(&iface->mac));
+    
+    ip_format(iface->ip, ip_buf);
+    vga_printf("IP Address: %s\n", ip_buf);
+    
+    ip_format(iface->netmask, ip_buf);
+    vga_printf("Netmask:    %s\n", ip_buf);
+    
+    ip_format(iface->gateway, ip_buf);
+    vga_printf("Gateway:    %s\n", ip_buf);
+    
+    ip_format(iface->dns, ip_buf);
+    vga_printf("DNS:        %s\n", ip_buf);
+    
+    vga_printf("\nStatistics:\n");
+    vga_printf("  RX packets: %d  bytes: %d\n", iface->rx_packets, iface->rx_bytes);
+    vga_printf("  TX packets: %d  bytes: %d\n", iface->tx_packets, iface->tx_bytes);
+    vga_printf("  RX errors:  %d\n", iface->rx_errors);
+    vga_printf("  TX errors:  %d\n", iface->tx_errors);
+}
+
+/* ==========================================
+ * 函数：cmd_ping
+ * 功能：Ping主机
+ * ========================================== */
+static void cmd_ping(const char *args)
+{
+    if (*args == '\0') {
+        vga_puts("Usage: ping <ip_address> [count]\n");
+        vga_puts("Example: ping 192.168.1.1 4\n");
+        return;
+    }
+    
+    /* 解析IP地址 */
+    char ip_str[16];
+    int i = 0;
+    const char *p = args;
+    while (*p && *p != ' ' && i < 15) {
+        ip_str[i++] = *p++;
+    }
+    ip_str[i] = '\0';
+    
+    ip_addr_t target_ip = ip_parse(ip_str);
+    if (target_ip == 0) {
+        vga_set_color(VGA_COLOR_LIGHT_RED, VGA_COLOR_BLACK);
+        vga_printf("Invalid IP address: %s\n", ip_str);
+        vga_set_color(VGA_COLOR_WHITE, VGA_COLOR_BLACK);
+        return;
+    }
+    
+    /* 解析次数 */
+    int count = 4;
+    while (*p == ' ') p++;
+    if (*p >= '0' && *p <= '9') {
+        count = 0;
+        while (*p >= '0' && *p <= '9') {
+            count = count * 10 + (*p - '0');
+            p++;
+        }
+    }
+    
+    net_interface_t *iface = net_get_default_interface();
+    if (iface == NULL) {
+        vga_set_color(VGA_COLOR_LIGHT_RED, VGA_COLOR_BLACK);
+        vga_puts("No network interface available\n");
+        vga_set_color(VGA_COLOR_WHITE, VGA_COLOR_BLACK);
+        return;
+    }
+    
+    vga_printf("PING %s: 56 data bytes\n", ip_str);
+    
+    ping_stats_t stats;
+    int ret = icmp_ping(iface, target_ip, count, 1000, &stats);
+    
+    vga_putc('\n');
+    vga_printf("--- %s ping statistics ---\n", ip_str);
+    vga_printf("%d packets transmitted, %d received, %d%% loss\n",
+               stats.sent, stats.received,
+               stats.sent > 0 ? (stats.lost * 100 / stats.sent) : 0);
+    if (stats.received > 0) {
+        vga_printf("rtt min/avg/max = %d/%d/%d ms\n",
+                   stats.min_rtt,
+                   stats.received > 0 ? stats.total_rtt / stats.received : 0,
+                   stats.max_rtt);
+    }
+}
+
+/* ==========================================
+ * 函数：cmd_arp
+ * 功能：显示ARP缓存
+ * ========================================== */
+static void cmd_arp(void)
+{
+    arp_cache_show();
+}
+
+/* ==========================================
+ * 函数：cmd_dhcp
+ * 功能：显示DHCP状态
+ * ========================================== */
+static void cmd_dhcp(const char *args)
+{
+    if (strcmp(args, "start") == 0 || strcmp(args, "request") == 0) {
+        vga_puts("Starting DHCP...\n");
+        int ret = dhcp_start();
+        if (ret == 0) {
+            vga_puts("DHCP request sent. Waiting for response...\n");
+        } else {
+            vga_set_color(VGA_COLOR_LIGHT_RED, VGA_COLOR_BLACK);
+            vga_puts("Failed to start DHCP\n");
+            vga_set_color(VGA_COLOR_WHITE, VGA_COLOR_BLACK);
+        }
+    } else {
+        dhcp_show_status();
+    }
+}
+
+/* ==========================================
+ * 函数：cmd_netstat
+ * 功能：显示网络统计
+ * ========================================== */
+static void cmd_netstat(void)
+{
+    net_interface_t *iface = net_get_default_interface();
+    
+    vga_set_color(VGA_COLOR_LIGHT_CYAN, VGA_COLOR_BLACK);
+    vga_puts("Network Statistics\n");
+    vga_set_color(VGA_COLOR_WHITE, VGA_COLOR_BLACK);
+    vga_puts("==================\n\n");
+    
+    if (iface != NULL) {
+        vga_printf("Interface: eth0 (%s)\n", iface->state == NET_IF_UP ? "UP" : "DOWN");
+        vga_printf("  RX: %d packets, %d bytes, %d errors\n",
+                   iface->rx_packets, iface->rx_bytes, iface->rx_errors);
+        vga_printf("  TX: %d packets, %d bytes, %d errors\n",
+                   iface->tx_packets, iface->tx_bytes, iface->tx_errors);
+    } else {
+        vga_puts("No active network interface\n");
+    }
+    
+    ne2000_data_t ne_status;
+    ne2000_get_status(&ne_status);
+    vga_printf("\nNE2000 Driver:\n");
+    vga_printf("  TX count: %d, errors: %d\n", ne_status.tx_count, ne_status.tx_errors);
+    vga_printf("  RX count: %d, errors: %d\n", ne_status.rx_count, ne_status.rx_errors);
+    vga_printf("  TX busy: %s\n", ne_status.tx_busy ? "yes" : "no");
+}
+
+/* ==========================================
  * 函数：execute_command
  * 功能：执行一条命令
  * ========================================== */
@@ -858,6 +1038,16 @@ static void execute_command(const char *cmd)
         cmd_mouse();
     } else if (strcmp(cmd_name, "serial") == 0) {
         cmd_serial(args);
+    } else if (strcmp(cmd_name, "ifconfig") == 0) {
+        cmd_ifconfig(args);
+    } else if (strcmp(cmd_name, "ping") == 0) {
+        cmd_ping(args);
+    } else if (strcmp(cmd_name, "arp") == 0) {
+        cmd_arp();
+    } else if (strcmp(cmd_name, "dhcp") == 0) {
+        cmd_dhcp(args);
+    } else if (strcmp(cmd_name, "netstat") == 0) {
+        cmd_netstat();
     } else {
         vga_set_color(VGA_COLOR_LIGHT_RED, VGA_COLOR_BLACK);
         vga_printf("Command not found: %s\n", cmd_name);
