@@ -232,3 +232,203 @@ void graphics_copy_area(int src_x, int src_y, int width, int height, int dest_x,
 
     framebuffer_copy(dest_x, dest_y, src_x, src_y, width, height);
 }
+
+/* ==========================================
+ * 颜色操作函数
+ * ========================================== */
+
+/* 从颜色值中提取各分量 */
+static uint8_t color_get_r(uint32_t color) { return (color >> 16) & 0xFF; }
+static uint8_t color_get_g(uint32_t color) { return (color >> 8) & 0xFF; }
+static uint8_t color_get_b(uint32_t color) { return color & 0xFF; }
+static uint8_t color_get_a(uint32_t color) { return (color >> 24) & 0xFF; }
+
+/* 混合颜色 */
+uint32_t color_blend(uint32_t fg, uint32_t bg, uint8_t alpha) {
+    if (alpha == 255) return fg;
+    if (alpha == 0) return bg;
+
+    uint8_t fg_a = color_get_a(fg);
+    uint8_t fg_r = color_get_r(fg);
+    uint8_t fg_g = color_get_g(fg);
+    uint8_t fg_b = color_get_b(fg);
+
+    uint8_t bg_r = color_get_r(bg);
+    uint8_t bg_g = color_get_g(bg);
+    uint8_t bg_b = color_get_b(bg);
+
+    /* 简单的Alpha混合 */
+    uint8_t result_r = (fg_r * alpha + bg_r * (255 - alpha)) / 255;
+    uint8_t result_g = (fg_g * alpha + bg_g * (255 - alpha)) / 255;
+    uint8_t result_b = (fg_b * alpha + bg_b * (255 - alpha)) / 255;
+
+    return COLOR_RGB(result_r, result_g, result_b);
+}
+
+/* 使颜色变亮 */
+uint32_t color_lighten(uint32_t color, int amount) {
+    uint8_t r = color_get_r(color);
+    uint8_t g = color_get_g(color);
+    uint8_t b = color_get_b(color);
+
+    r = (r + amount > 255) ? 255 : r + amount;
+    g = (g + amount > 255) ? 255 : g + amount;
+    b = (b + amount > 255) ? 255 : b + amount;
+
+    return COLOR_RGB(r, g, b);
+}
+
+/* 使颜色变暗 */
+uint32_t color_darken(uint32_t color, int amount) {
+    uint8_t r = color_get_r(color);
+    uint8_t g = color_get_g(color);
+    uint8_t b = color_get_b(color);
+
+    r = (r - amount < 0) ? 0 : r - amount;
+    g = (g - amount < 0) ? 0 : g - amount;
+    b = (b - amount < 0) ? 0 : b - amount;
+
+    return COLOR_RGB(r, g, b);
+}
+
+/* ==========================================
+ * 高级图形函数
+ * ========================================== */
+
+/* 渐变填充 */
+void graphics_draw_gradient(int x, int y, int width, int height,
+                          uint32_t color1, uint32_t color2, int vertical) {
+    uint8_t r1 = color_get_r(color1), g1 = color_get_g(color1), b1 = color_get_b(color1);
+    uint8_t r2 = color_get_r(color2), g2 = color_get_g(color2), b2 = color_get_b(color2);
+
+    if (vertical) {
+        /* 垂直渐变 */
+        for (int py = 0; py < height; py++) {
+            float ratio = (float)py / height;
+            uint8_t r = r1 + (r2 - r1) * ratio;
+            uint8_t g = g1 + (g2 - g1) * ratio;
+            uint8_t b = b1 + (b2 - b1) * ratio;
+            uint32_t color = COLOR_RGB(r, g, b);
+            graphics_draw_line(x, y + py, x + width - 1, y + py, color);
+        }
+    } else {
+        /* 水平渐变 */
+        for (int px = 0; px < width; px++) {
+            float ratio = (float)px / width;
+            uint8_t r = r1 + (r2 - r1) * ratio;
+            uint8_t g = g1 + (g2 - g1) * ratio;
+            uint8_t b = b1 + (b2 - b1) * ratio;
+            uint32_t color = COLOR_RGB(r, g, b);
+            graphics_draw_line(x + px, y, x + px, y + height - 1, color);
+        }
+    }
+}
+
+/* 绘制带阴影的矩形 */
+void graphics_draw_shadow_rect(int x, int y, int width, int height, int shadow_size) {
+    /* 绘制阴影 */
+    for (int i = 0; i < shadow_size; i++) {
+        uint32_t shadow_color = COLOR_ARGB(80 - i * 10, 0, 0, 0);
+        /* 底部阴影 */
+        graphics_draw_line(x + shadow_size - i, y + height + i,
+                          x + width - shadow_size + i, y + height + i, shadow_color);
+        /* 右边阴影 */
+        graphics_draw_line(x + width + i, y + shadow_size - i,
+                          x + width + i, y + height - shadow_size + i, shadow_color);
+    }
+    /* 绘制主矩形 */
+    graphics_draw_rect(x, y, width, height, COLOR_BLACK);
+}
+
+/* 绘制抗锯齿像素（简单的加权采样） */
+void graphics_draw_antialiased_pixel(int x, int y, uint32_t color) {
+    graphics_draw_pixel(x, y, color);
+}
+
+/* 绘制圆弧 - 使用Bresenham算法简化版 */
+void graphics_draw_arc(int cx, int cy, int radius, int start_angle, int end_angle, uint32_t color) {
+    /* 使用Bresenham算法绘制圆，简化版：只画上半部分或下半部分 */
+    int x = 0;
+    int y = radius;
+    int d = 3 - 2 * radius;
+
+    /* 转换角度到弧度（用于确定绘制范围） */
+    int start_rad = start_angle * 3 / 180;  /* 简化 */
+    int end_rad = end_angle * 3 / 180;
+
+    while (x <= y) {
+        /* 根据角度范围绘制点 */
+        if (x <= y) {
+            /* 第一象限 */
+            if (start_angle <= 0 && end_angle >= 0) {
+                graphics_draw_pixel(cx + y, cy - x, color);
+            }
+            /* 第二象限 */
+            if (start_angle <= 90 && end_angle >= 90) {
+                graphics_draw_pixel(cx + x, cy - y, color);
+            }
+            /* 第三象限 */
+            if (start_angle <= 180 && end_angle >= 180) {
+                graphics_draw_pixel(cx - x, cy - y, color);
+            }
+            /* 第四象限 */
+            if (start_angle <= 270 && end_angle >= 270) {
+                graphics_draw_pixel(cx - y, cy - x, color);
+            }
+
+            /* 下方对称点 */
+            if (start_angle <= 360 && end_angle >= 360) {
+                graphics_draw_pixel(cx + y, cy + x, color);
+            }
+            if (start_angle <= 270 && end_angle >= 270) {
+                graphics_draw_pixel(cx + x, cy + y, color);
+            }
+            if (start_angle <= 180 && end_angle >= 180) {
+                graphics_draw_pixel(cx - x, cy + y, color);
+            }
+            if (start_angle <= 90 && end_angle >= 90) {
+                graphics_draw_pixel(cx - y, cy + x, color);
+            }
+        }
+
+        if (d < 0) {
+            d = d + 4 * x + 6;
+        } else {
+            d = d + 4 * (x - y) + 10;
+            y--;
+        }
+        x++;
+    }
+}
+
+/* 绘制圆角矩形边框 */
+void graphics_draw_round_rect(int x, int y, int width, int height, int radius, uint32_t color) {
+    /* 绘制四角的圆弧 */
+    /* 左上角 */
+    graphics_draw_arc(x + radius, y + radius, radius, 180, 270, color);
+    /* 右上角 */
+    graphics_draw_arc(x + width - radius - 1, y + radius, radius, 270, 360, color);
+    /* 右下角 */
+    graphics_draw_arc(x + width - radius - 1, y + height - radius - 1, radius, 0, 90, color);
+    /* 左下角 */
+    graphics_draw_arc(x + radius, y + height - radius - 1, radius, 90, 180, color);
+
+    /* 绘制四条边 */
+    graphics_draw_line(x + radius, y, x + width - radius - 1, y, color);  /* 上 */
+    graphics_draw_line(x + width - 1, y + radius, x + width - 1, y + height - radius - 1, color);  /* 右 */
+    graphics_draw_line(x + radius, y + height - 1, x + width - radius - 1, y + height - 1, color);  /* 下 */
+    graphics_draw_line(x, y + radius, x, y + height - radius - 1, color);  /* 左 */
+}
+
+/* 填充圆角矩形 */
+void graphics_fill_round_rect(int x, int y, int width, int height, int radius, uint32_t color) {
+    /* 填充主体矩形（去掉四角） */
+    graphics_fill_rect(x + radius, y, width - 2 * radius, height, color);
+    graphics_fill_rect(x, y + radius, width, height - 2 * radius, color);
+
+    /* 填充四个角的圆 */
+    graphics_fill_circle(x + radius, y + radius, radius, color);
+    graphics_fill_circle(x + width - radius - 1, y + radius, radius, color);
+    graphics_fill_circle(x + radius, y + height - radius - 1, radius, color);
+    graphics_fill_circle(x + width - radius - 1, y + height - radius - 1, radius, color);
+}

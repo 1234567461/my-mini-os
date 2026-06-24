@@ -327,7 +327,7 @@ static void dhcp_udp_callback(net_interface_t *iface, ip_addr_t src_ip,
                 
                 char ip_buf[16];
                 ip_format(dhcp_ctx.lease.ip, ip_buf);
-                klog_log("dhcp", "Got IP: %s", ip_buf);
+                klog_logf("dhcp", "Got IP: %s", ip_buf);
             }
             break;
             

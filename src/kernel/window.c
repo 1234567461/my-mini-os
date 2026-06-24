@@ -500,3 +500,10 @@ window_t *window_get_at_point(int x, int y) {
 
     return top;
 }
+
+/* ==========================================
+ * 获取窗口链表
+ * ========================================== */
+window_t *window_get_list(void) {
+    return window_list;
+}

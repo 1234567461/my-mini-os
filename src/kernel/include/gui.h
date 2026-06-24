@@ -1,10 +1,12 @@
 /* ==========================================
- * GUI - 图形用户界面核心头文件 v0.8.0
+ * GUI - 图形用户界面核心头文件 v0.9.0
  * 功能：
  *   1. 帧缓冲驱动
  *   2. 图形绘制
  *   3. 窗口管理
  *   4. 事件处理
+ *   5. 高级控件（按钮、文本框、进度条等）
+ *   6. 任务栏和开始菜单
  * ========================================== */
 
 #ifndef GUI_H
@@ -17,6 +19,13 @@
 #define GUI_HEIGHT   480
 #define GUI_BPP      32          /* 32位色深 */
 #define GUI_PITCH    (GUI_WIDTH * 4)  /* 每行字节数 */
+
+/* 任务栏高度 */
+#define TASKBAR_HEIGHT 32
+
+/* 开始菜单宽度和高度 */
+#define START_MENU_WIDTH 180
+#define START_MENU_HEIGHT 200
 
 /* 颜色格式：0xAARRGGBB */
 #define COLOR_ARGB(a, r, g, b) ((uint32_t)((a) << 24 | (r) << 16 | (g) << 8 | (b)))
@@ -32,6 +41,14 @@
 #define COLOR_GRAY             COLOR_RGB(128, 128, 128)
 #define COLOR_LIGHT_GRAY       COLOR_RGB(192, 192, 192)
 #define COLOR_DARK_GRAY        COLOR_RGB(64, 64, 64)
+
+/* 主题颜色 */
+#define COLOR_TITLE_ACTIVE     COLOR_RGB(0, 0, 180)
+#define COLOR_TITLE_INACTIVE   COLOR_RGB(128, 128, 128)
+#define COLOR_BTN_FACE         COLOR_RGB(236, 233, 216)
+#define COLOR_BTN_HIGHLIGHT   COLOR_RGB(255, 255, 255)
+#define COLOR_BTN_SHADOW       COLOR_RGB(172, 168, 153)
+#define COLOR_WINDOW_BG        COLOR_RGB(192, 192, 192)
 
 /* 透明度 */
 #define ALPHA_TRANSPARENT  0
@@ -175,8 +192,11 @@ window_t *window_get_focused(void);
 void window_bring_to_front(window_t *win);
 void window_send_to_back(window_t *win);
 
-/* 获取窗口在指定坐标处的最顶层窗口 */
+/* 获取窗口在指定坐标处的最顶端窗口 */
 window_t *window_get_at_point(int x, int y);
+
+/* 获取窗口链表（用于GUI系统遍历） */
+window_t *window_get_list(void);
 
 /* 检测点是否在标题栏上 */
 int window_hit_test_titlebar(window_t *win, int x, int y);
@@ -206,6 +226,7 @@ void event_set_keyboard_callback(void (*callback)(uint32_t key_code, int is_pres
 void gui_init(void);
 void gui_update(void);
 void gui_main_loop(void);
+void gui_exit(void);
 
 /* ==========================================
  * 控件函数
@@ -213,11 +234,99 @@ void gui_main_loop(void);
 void button_draw(window_t *btn, int x, int y, int width, int height, const char *text);
 int button_hit_test(window_t *btn, int x, int y);
 
+/* 文本框控件 */
+typedef struct {
+    char text[256];
+    int cursor_pos;
+    int max_length;
+    int isFocused;
+} textbox_t;
+
+void textbox_draw(int x, int y, int width, int height, textbox_t *tb);
+int textbox_hit_test(int x, int y, int width, int height);
+void textbox_handle_key(textbox_t *tb, uint32_t key_code);
+
+/* 进度条控件 */
+typedef struct {
+    int value;
+    int min;
+    int max;
+} progressbar_t;
+
+void progressbar_draw(int x, int y, int width, int height, progressbar_t *pb);
+void progressbar_set_value(progressbar_t *pb, int value);
+
+/* 复选框控件 */
+typedef struct {
+    int checked;
+    const char *label;
+} checkbox_t;
+
+void checkbox_draw(int x, int y, const char *label, int checked, int focused);
+int checkbox_hit_test(int x, int y);
+
+/* 标签控件 */
+void label_draw(int x, int y, const char *text, uint32_t color);
+
+/* ==========================================
+ * 任务栏函数
+ * ========================================== */
+void taskbar_init(void);
+void taskbar_draw(void);
+void taskbar_update(void);
+int taskbar_hit_test_start_button(int x, int y);
+int taskbar_hit_test_clock(int x, int y);
+
+/* ==========================================
+ * 开始菜单函数
+ * ========================================== */
+void start_menu_show(void);
+void start_menu_hide(void);
+int start_menu_is_visible(void);
+void start_menu_draw(void);
+int start_menu_hit_test(int x, int y);
+void start_menu_handle_click(int x, int y);
+
+/* 开始菜单项 */
+typedef struct {
+    const char *text;
+    const char *icon;  /* 图标标识 */
+    void (*action)(void);
+} start_menu_item_t;
+
+void start_menu_add_item(const char *text, const char *icon, void (*action)(void));
+
+/* ==========================================
+ * 高级图形函数
+ * ========================================== */
+
+/* 渐变填充 */
+void graphics_draw_gradient(int x, int y, int width, int height,
+                          uint32_t color1, uint32_t color2, int vertical);
+
+/* 绘制带阴影的矩形 */
+void graphics_draw_shadow_rect(int x, int y, int width, int height, int shadow_size);
+
+/* 绘制像素点（抗锯齿） */
+void graphics_draw_antialiased_pixel(int x, int y, uint32_t color);
+
+/* 绘制圆弧 */
+void graphics_draw_arc(int cx, int cy, int radius, int start_angle, int end_angle, uint32_t color);
+
+/* 绘制圆角矩形 */
+void graphics_draw_round_rect(int x, int y, int width, int height, int radius, uint32_t color);
+void graphics_fill_round_rect(int x, int y, int width, int height, int radius, uint32_t color);
+
 /* ==========================================
  * 实用函数
  * ========================================== */
 int rect_contains_point(rect_t *rect, int x, int y);
 int rects_intersect(rect_t *a, rect_t *b);
 void rect_union(rect_t *a, rect_t *b, rect_t *result);
+
+/* 颜色操作 */
+uint32_t color_blend(uint32_t fg, uint32_t bg, uint8_t alpha);
+uint32_t color_lighten(uint32_t color, int amount);
+uint32_t color_darken(uint32_t color, int amount);
 
 #endif /* GUI_H */

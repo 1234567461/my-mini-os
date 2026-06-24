@@ -58,7 +58,7 @@ int net_register_interface(net_interface_t *iface)
     /* 如果还没有默认接口，设置为默认 */
     if (default_iface == NULL) {
         default_iface = iface;
-        klog_log("net", "Set default interface: %s", iface->name);
+        klog_logf("net", "Set default interface: %s", iface->name);
     }
     
     return 0;

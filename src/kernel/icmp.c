@@ -64,12 +64,12 @@ void icmp_receive(net_interface_t *iface, ip_addr_t src_ip,
             
         case ICMP_TYPE_DEST_UNREACH:
             /* 目标不可达 */
-            klog_log("icmp", "Destination unreachable from %x", src_ip);
+            klog_logf("icmp", "Destination unreachable from %x", src_ip);
             break;
             
         case ICMP_TYPE_TIME_EXCEED:
             /* TTL超时 */
-            klog_log("icmp", "Time exceeded from %x", src_ip);
+            klog_logf("icmp", "Time exceeded from %x", src_ip);
             break;
             
         default:

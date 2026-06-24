@@ -82,7 +82,7 @@ int socket_create(int domain, int type, int protocol)
         }
     }
     
-    klog_log("socket", "Created %s socket fd=%d",
+    klog_logf("socket", "Created %s socket fd=%d",
              type == SOCK_STREAM ? "TCP" : "UDP", sock->fd);
     
     return sock->fd;
@@ -152,7 +152,7 @@ int socket_listen(int fd, int backlog)
     
     sock->state = SOCKET_STATE_LISTENING;
     
-    klog_log("socket", "Listening on port %d", sock->local_port);
+    klog_logf("socket", "Listening on port %d", sock->local_port);
     
     return SOCKET_OK;
 }
@@ -203,7 +203,7 @@ int socket_accept(int fd, sockaddr_in_t *addr)
             tcp_listen(sock->tcp_conn, sock->local_port);
         }
         
-        klog_log("socket", "Accepted connection from fd=%d", new_sock->fd);
+        klog_logf("socket", "Accepted connection from fd=%d", new_sock->fd);
         
         return new_sock->fd;
     }
@@ -259,7 +259,7 @@ int socket_connect(int fd, const sockaddr_in_t *addr)
     
     sock->state = SOCKET_STATE_CONNECTED;
     
-    klog_log("socket", "Connected to remote fd=%d", sock->fd);
+    klog_logf("socket", "Connected to remote fd=%d", sock->fd);
     
     return SOCKET_OK;
 }
@@ -427,7 +427,7 @@ int socket_close(int fd)
     sock->state = SOCKET_STATE_FREE;
     sock->fd = -1;
     
-    klog_log("socket", "Closed socket fd=%d", fd);
+    klog_logf("socket", "Closed socket fd=%d", fd);
     
     return SOCKET_OK;
 }

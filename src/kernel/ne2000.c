@@ -92,7 +92,7 @@ int ne2000_init(net_interface_t *iface)
 {
     uint16_t base = NE_IO_BASE;
     
-    klog_log("ne2k", "Initializing NE2000 at I/O 0x%x", base);
+    klog_logf("ne2k", "Initializing NE2000 at I/O 0x%x", base);
     
     /* 初始化私有数据 */
     memset(&ne2000_priv, 0, sizeof(ne2000_priv));
@@ -190,7 +190,7 @@ int ne2000_init(net_interface_t *iface)
     
     ne2000_priv.initialized = true;
     
-    klog_log("ne2k", "NE2000 initialized: MAC=%02x:%02x:%02x:%02x:%02x:%02x",
+    klog_logf("ne2k", "NE2000 initialized: MAC=%02x:%02x:%02x:%02x:%02x:%02x",
              mac_format(&iface->mac));
     
     /* 注册IRQ处理程序 */
