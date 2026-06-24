@@ -176,12 +176,35 @@ void klog_log(const char *module, const char *message) {
     if (!klog_initialized) {
         return;
     }
-    
+
     klog_putc('[');
     klog_puts(module);
     klog_putc(']');
     klog_putc(' ');
     klog_puts(message);
+    klog_putc('\n');
+}
+
+/* ==========================================
+ * 记录模块日志（printf风格）
+ * 格式：[module] formatted_message\n
+ * ========================================== */
+void klog_logf(const char *module, const char *fmt, ...) {
+    if (!klog_initialized) {
+        return;
+    }
+
+    va_list args;
+
+    klog_putc('[');
+    klog_puts(module);
+    klog_putc(']');
+    klog_putc(' ');
+
+    va_start(args, fmt);
+    klog_vprintf(fmt, args);
+    va_end(args);
+
     klog_putc('\n');
 }
 

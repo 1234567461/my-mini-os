@@ -33,6 +33,9 @@ void klog_init();
 /* 记录模块日志（简化版，带模块名） */
 void klog_log(const char *module, const char *message);
 
+/* 记录模块日志（printf风格） */
+void klog_logf(const char *module, const char *fmt, ...);
+
 /* 打印内核日志（带级别） */
 void printk(int level, const char *fmt, ...);
 

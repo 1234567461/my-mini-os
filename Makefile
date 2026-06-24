@@ -30,7 +30,8 @@ OS_IMG     = $(BUILD_DIR)/myos.img
 # 内核源文件
 KERNEL_ASM_SRCS = $(wildcard $(KERNEL_DIR)/*.asm)
 KERNEL_C_SRCS   = $(wildcard $(KERNEL_DIR)/*.c)
-KERNEL_OBJS     = $(patsubst $(KERNEL_DIR)/%.asm, $(BUILD_DIR)/kernel_%.o, $(KERNEL_ASM_SRCS)) \
+# asm文件使用kernel_asm_前缀避免与c文件冲突
+KERNEL_OBJS     = $(patsubst $(KERNEL_DIR)/%.asm, $(BUILD_DIR)/kernel_asm_%.o, $(KERNEL_ASM_SRCS)) \
                   $(patsubst $(KERNEL_DIR)/%.c, $(BUILD_DIR)/kernel_%.o, $(KERNEL_C_SRCS))
 
 # 默认目标
@@ -53,7 +54,7 @@ $(LOADER_BIN): $(BOOT_DIR)/loader.asm | $(BUILD_DIR)
 	@echo "   文件大小: $$(wc -c < $@) 字节"
 
 # ====== 内核：汇编文件编译 ======
-$(BUILD_DIR)/kernel_%.o: $(KERNEL_DIR)/%.asm | $(BUILD_DIR)
+$(BUILD_DIR)/kernel_asm_%.o: $(KERNEL_DIR)/%.asm | $(BUILD_DIR)
 	$(NASM) -f elf32 $< -o $@
 	@echo "✅ 内核汇编编译: $<"
 

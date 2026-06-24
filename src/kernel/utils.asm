@@ -77,48 +77,23 @@ hlt:
     ret
 
 ; ==========================================
-; 内存操作（快速版本，用汇编优化）
+; GDT和TSS操作
 ; ==========================================
 
-; void memset(void *dst, uint8_t val, size_t count)
-global memset
-memset:
-    push edi
-    mov edi, [esp + 8]   ; dst
-    mov eax, [esp + 12]  ; val
-    mov ecx, [esp + 16]  ; count
-    rep stosb
-    pop edi
+; void gdt_flush(uint32_t gdt_ptr)
+global gdt_flush
+gdt_flush:
+    lgdt [esp + 4]
     ret
 
-; void memcpy(void *dst, const void *src, size_t count)
-global memcpy
-memcpy:
-    push esi
-    push edi
-    mov edi, [esp + 12]  ; dst
-    mov esi, [esp + 16]  ; src
-    mov ecx, [esp + 20]  ; count
-    rep movsb
-    pop edi
-    pop esi
+; void tss_flush(uint16_t sel)
+global tss_flush
+tss_flush:
+    mov ax, [esp + 4]
+    ltr ax
     ret
 
-; int memcmp(const void *s1, const void *s2, size_t count)
-global memcmp
-memcmp:
-    push esi
-    push edi
-    mov esi, [esp + 12]  ; s1
-    mov edi, [esp + 16]  ; s2
-    mov ecx, [esp + 20]  ; count
-    repe cmpsb
-    jz .equal
-    mov eax, 1
-    jmp .done
-.equal:
-    mov eax, 0
-.done:
-    pop edi
-    pop esi
-    ret
+; ==========================================
+; 内存操作（快速版本，用汇编优化）
+; 注意：memset/memcpy/memcmp 已由 string.c 提供
+; ==========================================

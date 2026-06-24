@@ -5,6 +5,7 @@
 #include "vga.h"
 #include "string.h"
 #include "types.h"
+#include "stdarg.h"
 
 /* 全局变量 */
 static uint8_t  cursor_x = 0;

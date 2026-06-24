@@ -188,6 +188,55 @@ irq_common_stub:
     iret
 
 ; ==========================================
+; 系统调用处理stub（int 0x80）
+; 用户态通过这个门进入内核态
+; ==========================================
+
+extern syscall_dispatch   ; C语言的系统调用分发函数
+
+global syscall_handler_stub
+syscall_handler_stub:
+    ; 保存所有寄存器
+    pusha
+    push ds
+    push es
+    push fs
+    push gs
+
+    ; 切换到内核数据段
+    mov ax, 0x10
+    mov ds, ax
+    mov es, ax
+    mov fs, ax
+    mov gs, ax
+
+    ; 获取当前任务的kernel_stack顶，更新TSS
+    extern current_task_kernel_stack
+    mov eax, [current_task_kernel_stack]
+    mov [tss_esp0], eax
+
+    ; 调用系统调用分发函数
+    push esp        ; 传递寄存器上下文
+    call syscall_dispatch
+    add esp, 4
+
+    ; 恢复数据段
+    pop gs
+    pop fs
+    pop es
+    pop ds
+
+    ; 恢复所有寄存器
+    popa
+
+    ; 返回用户态
+    iret
+
+; TSS内核栈指针（外部引用）
+global tss_esp0
+tss_esp0: dd 0
+
+; ==========================================
 ; 加载IDT
 ; ==========================================
 

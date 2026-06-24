@@ -27,6 +27,12 @@
 #define CMD_BUF_SIZE 128
 
 /* ==========================================
+ * GUI外部函数声明
+ * ========================================== */
+extern void gui_init(void);
+extern void gui_main_loop(void);
+
+/* ==========================================
  * 内置命令列表
  * ========================================== */
 static const char *help_text =
@@ -52,6 +58,7 @@ static const char *help_text =
     "  cat        - Display file contents\n"
     "  mkdir      - Create a directory\n"
     "  rm         - Remove a file\n"
+    "  gui        - Launch GUI interface\n"
     "  cd         - Change directory\n"
     "  pwd        - Print working directory\n"
     "  touch      - Create empty file\n"
@@ -746,6 +753,85 @@ static void cmd_serial(const char *args)
 }
 
 /* ==========================================
+ * 函数：cmd_gui
+ * 功能：启动GUI界面
+ * ========================================== */
+static void cmd_gui(void)
+{
+    vga_set_color(VGA_COLOR_LIGHT_CYAN, VGA_COLOR_BLACK);
+    vga_puts("\nLaunching GUI...\n\n");
+    vga_set_color(VGA_COLOR_WHITE, VGA_COLOR_BLACK);
+    vga_puts("Type 'exit' in GUI to return to shell.\n");
+    vga_puts("Use mouse to interact with windows.\n\n");
+
+    /* 初始化并启动GUI */
+    gui_init();
+    gui_main_loop();
+
+    /* 从GUI返回后清屏并显示提示 */
+    vga_clear();
+    vga_set_color(VGA_COLOR_LIGHT_GREEN, VGA_COLOR_BLACK);
+    vga_puts("Returned to Shell.\n\n");
+    vga_set_color(VGA_COLOR_WHITE, VGA_COLOR_BLACK);
+}
+
+/* ==========================================
+ * 函数：cmd_exec
+ * 功能：执行外部程序
+ * 用法：exec <program> [args...]
+ * ========================================== */
+static void cmd_exec(const char *args)
+{
+    if (*args == '\0') {
+        vga_puts("Usage: exec <program> [args...]\n");
+        vga_puts("  Execute a program file from the filesystem.\n");
+        return;
+    }
+
+    /* 解析程序名和参数 */
+    char program[64];
+    char prog_args[128];
+    const char *p = args;
+
+    /* 跳过空格 */
+    while (*p == ' ' || *p == '\t') p++;
+
+    /* 提取程序名 */
+    int i = 0;
+    while (*p && *p != ' ' && *p != '\t' && i < 63) {
+        program[i++] = *p++;
+    }
+    program[i] = '\0';
+
+    /* 跳过空格 */
+    while (*p == ' ' || *p == '\t') p++;
+
+    /* 复制剩余参数 */
+    strncpy(prog_args, p, 127);
+    prog_args[127] = '\0';
+
+    vga_set_color(VGA_COLOR_CYAN, VGA_COLOR_BLACK);
+    vga_printf("Executing: %s %s\n", program, prog_args);
+    vga_set_color(VGA_COLOR_WHITE, VGA_COLOR_BLACK);
+
+    /* 尝试执行程序 */
+    int pid = sys_execve(program, prog_args);
+
+    if (pid < 0) {
+        vga_set_color(VGA_COLOR_LIGHT_RED, VGA_COLOR_BLACK);
+        vga_printf("exec: failed to execute '%s'\n", program);
+        vga_printf("  Make sure the file exists and is a valid executable.\n");
+        vga_set_color(VGA_COLOR_WHITE, VGA_COLOR_BLACK);
+    } else {
+        vga_printf("Started process with PID: %d\n", pid);
+        /* 等待进程结束 */
+        int status;
+        int ret = sys_waitpid(pid, &status, 0);
+        vga_printf("Process %d exited with status: %d\n", pid, status);
+    }
+}
+
+/* ==========================================
  * 函数：execute_command
  * 功能：执行一条命令
  * ========================================== */
@@ -792,6 +878,8 @@ static void execute_command(const char *cmd)
         cmd_version();
     } else if (strcmp(cmd_name, "color") == 0) {
         cmd_color(args);
+    } else if (strcmp(cmd_name, "exec") == 0) {
+        cmd_exec(args);
     } else if (strcmp(cmd_name, "date") == 0) {
         rtc_time_t time;
         rtc_get_time(&time);
@@ -858,6 +946,8 @@ static void execute_command(const char *cmd)
         cmd_mouse();
     } else if (strcmp(cmd_name, "serial") == 0) {
         cmd_serial(args);
+    } else if (strcmp(cmd_name, "gui") == 0) {
+        cmd_gui();
     } else {
         vga_set_color(VGA_COLOR_LIGHT_RED, VGA_COLOR_BLACK);
         vga_printf("Command not found: %s\n", cmd_name);

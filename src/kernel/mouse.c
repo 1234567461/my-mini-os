@@ -241,7 +241,7 @@ void mouse_init(void)
     isr_register_handler(44, mouse_handler);
     
     /* 启用 IRQ12 */
-    pic_clear_mask(12);
+    pic_irq_mask(12);
     
     mouse_initialized = true;
     

@@ -35,6 +35,7 @@
 #define SIGTSTP     20  /* 终端停止 */
 #define SIGTTIN     21  /* 后台进程读终端 */
 #define SIGTTOU     22  /* 后台进程写终端 */
+#define SIGWINCH    28  /* 窗口大小改变 */
 
 #define SIG_MAX     32  /* 最大信号数 */
 

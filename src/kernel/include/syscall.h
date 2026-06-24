@@ -33,4 +33,10 @@
  * ========================================== */
 void syscall_init(void);
 
+/* ==========================================
+ * 系统调用包装函数
+ * ========================================== */
+int sys_execve(const char *filename, const char *args);
+int sys_waitpid(int pid, int *status, int options);
+
 #endif /* SYSCALL_H */

@@ -1,6 +1,113 @@
 # Changelog
 All notable changes to this project will be documented in this file.
 
+## [v0.8.0] - 2026-06-24
+### Overview
+v0.8.0 is a major release that adds a complete Graphical User Interface (GUI) system with window management, event handling, and basic graphics rendering. Users can now launch a graphical desktop environment with draggable windows.
+
+### New Features
+
+#### GUI System (Graphical User Interface)
+- **Framebuffer Driver** (`framebuffer.c`):
+  - 640x480x32 graphics mode support
+  - Pixel manipulation and area filling
+  - Blit operations for bitmap transfer
+  - Clip region support
+- **Graphics Engine** (`graphics.c`):
+  - Bresenham line drawing algorithm
+  - Rectangle and filled rectangle drawing
+  - Circle and filled circle drawing
+  - Bitmap rendering for fonts and sprites
+  - Clip region management
+- **Font Renderer** (`font.c`):
+  - 8x16 pixel bitmap font support
+  - ASCII character rendering (0x20-0x7F)
+  - Scalable font size (1x, 2x, etc.)
+  - String drawing with newline support
+- **Window Manager** (`window.c`):
+  - Window creation with title bar and borders
+  - Draggable windows (title bar)
+  - Window focus management (click to focus)
+  - Close button support
+  - Window layering (z-order)
+  - 3D-styled borders and title bars
+- **Event System** (`event.c`):
+  - Mouse move/down/up event handling
+  - Window hit-testing (title bar, close button)
+  - Event queue for asynchronous event processing
+  - Drag and drop window support
+- **GUI Main Loop** (`gui.c`):
+  - Desktop window with gradient background
+  - Demo windows with buttons and graphics
+  - Event-driven window updates
+  - Shell command `gui` to launch GUI
+
+#### Shell Integration
+- **New command**: `gui` - Launch graphical desktop environment
+- **Command help**: Added GUI command to help text
+
+#### Build System
+- **New source files**: gui.c, font.c, framebuffer.c, graphics.c, window.c, event.c
+- **Header file**: gui.h (comprehensive GUI definitions)
+
+## [v0.7.0] - 2026-06-24
+### Overview
+v0.7.0 is a major release that adds proper user-mode execution support with GDT/TSS, improved ELF loading, and external program execution from shell. This version enables true user-space processes and lays the foundation for running user applications.
+
+### New Features
+
+#### GDT (Global Descriptor Table) and TSS (Task State Segment)
+- **Complete GDT implementation**:
+  - Kernel code/data segments (privilege level 0)
+  - User code/data segments (privilege level 3)
+  - TSS descriptor for task switching
+  - gdt_flush() and tss_flush() assembly functions
+- **TSS support**:
+  - Kernel stack pointer tracking
+  - Automatic kernel stack update on privilege level change
+  - Hardware task switching support
+
+#### User-Mode Execution
+- **User-space address space**:
+  - Separate user and kernel address spaces
+  - User-space base: 0x40000000 (1GB)
+  - User-space end: 0x80000000 (2GB)
+  - Separate user stack and heap regions
+- **User-mode context**:
+  - Proper CS/DS segment selectors for user mode
+  - iret-based return to user mode
+  - User-mode stack management
+- **System call gate**:
+  - Ring 3 accessible interrupt gate (int 0x80)
+  - Automatic kernel stack switching via TSS
+
+#### External Program Execution
+- **New shell command**: `exec <program> [args...]`
+  - Execute programs from filesystem
+  - Wait for program completion
+  - Display exit status
+- **sys_execve system call**:
+  - ELF file loading and validation
+  - User-space memory mapping
+  - Process creation with user-mode context
+- **sys_waitpid system call**:
+  - Parent process waiting
+  - Exit status reporting
+
+#### Build System Improvements
+- **Assembly/C object separation**:
+  - Fixed Makefile to avoid name collisions
+  - kernel_asm_*.o prefix for assembly objects
+- **Compilation fixes**:
+  - Proper function declarations and extern keywords
+  - Fixed multiple definition errors
+
+### Bug Fixes
+- Fixed process_tick → task_tick rename issue
+- Fixed pic_clear_mask → pic_irq_mask in mouse driver
+- Fixed VGA_COLOR_YELLOW → VGA_COLOR_LIGHT_BROWN
+- Fixed missing klog_logf function
+
 ## [v0.6.0] - 2026-06-23
 ### Overview
 v0.6.0 is a major release that adds comprehensive device driver support, FAT32 file system, MBR partition table parsing, and inter-process communication (IPC). This version significantly expands the hardware support and process management capabilities of the operating system.

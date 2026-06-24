@@ -1,9 +1,10 @@
 /* ==========================================
- * 进程管理实现 v0.4.0
+ * 进程管理实现 v0.7.0
  * 功能增强：
  *   1. 每个进程独立的页目录（地址空间隔离）
  *   2. 用户栈和用户堆
  *   3. 内核/用户空间分离
+ *   4. 真正的用户态切换（TSS + iret）
  * 调度算法：时间片轮转（Round Robin）
  * ========================================== */
 #include "task.h"
@@ -14,6 +15,7 @@
 #include "paging.h"
 #include "memory.h"
 #include "ipc.h"
+#include "gdt.h"
 
 /* 最大进程数 */
 #define MAX_TASKS       64
@@ -274,20 +276,31 @@ int task_create_user(const char *name, void (*entry)(), uint32_t priority) {
     task->user_space.heap_brk = task->user_space.heap_start + PAGE_SIZE;
 
     /* 设置内核栈顶（栈从高地址向低地址增长） */
-    uint32_t *stack_top = (uint32_t *)((uint32_t)task->kernel_stack + DEFAULT_KERNEL_STACK_SIZE);
+    uint32_t *kernel_stack_top = (uint32_t *)((uint32_t)task->kernel_stack + DEFAULT_KERNEL_STACK_SIZE);
 
-    /* 模拟函数调用栈 */
-    *(--stack_top) = (uint32_t)task_exit_wrapper;  /* 返回地址 */
+    /* 模拟中断栈帧（用于从内核态切换到用户态）：
+     * 当使用iret返回时，CPU会弹出这些值
+     */
+    *(--kernel_stack_top) = user_data_sel;           /* 用户数据段选择子 */
+    *(--kernel_stack_top) = user_stack_virt;        /* 用户栈指针 */
+    *(--kernel_stack_top) = 0x202;                  /* 标志寄存器 */
+    *(--kernel_stack_top) = user_code_sel;          /* 用户代码段选择子 */
+    *(--kernel_stack_top) = (uint32_t)entry;         /* 返回地址（程序入口） */
+
+    /* 预留空间保存通用寄存器 */
+    kernel_stack_top -= 8;  /* eax, ecx, edx, ebx, esp, ebp, esi, edi */
+
+    /* 保存初始栈指针 */
+    task->context.esp = (uint32_t)kernel_stack_top;
 
     /* 初始化上下文
-     * 注意：目前用户进程仍在内核态运行，
-     * 真正的用户态切换需要TSS和iret，后续版本实现
+     * 注意：用户进程使用用户代码段和数据段选择子
      */
     task->context.eip = (uint32_t)entry;
-    task->context.cs = 0x08;  /* 代码段选择子（内核态） */
-    task->context.eflags = 0x202;  /* 开中断 */
-    task->context.esp = (uint32_t)stack_top;
-    task->context.ss = 0x10;  /* 数据段选择子（内核态） */
+    task->context.cs = user_code_sel;               /* 用户代码段 */
+    task->context.eflags = 0x202;                  /* 开中断，嵌套标志 */
+    task->context.ss = user_data_sel;               /* 用户数据段 */
+    task->context.user_esp = user_stack_virt;       /* 用户栈指针 */
 
     /* 初始化通用寄存器 */
     task->context.eax = 0;

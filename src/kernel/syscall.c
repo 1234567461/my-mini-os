@@ -1,9 +1,10 @@
 /* ==========================================
- * 系统调用实现 - syscall.c
+ * 系统调用实现 - syscall.c v0.7.0
  * 功能：
  *   1. 系统调用中断处理（int 0x80）
  *   2. 系统调用分发
  *   3. 基础系统调用实现
+ *   4. 支持用户态切换
  * ========================================== */
 
 #include "syscall.h"
@@ -17,12 +18,18 @@
 #include "types.h"
 #include "elf.h"
 #include "heap.h"
+#include "gdt.h"
+#include "paging.h"
 
 /* 系统调用函数指针类型 */
 typedef int (*syscall_func_t)(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t);
 
 /* 系统调用表 */
 static syscall_func_t syscall_table[MAX_SYSCALLS];
+
+/* 外部变量：从汇编代码引用 */
+extern uint32_t tss_esp0;
+uint32_t current_task_kernel_stack = 0;
 
 /* ==========================================
  * 函数：sys_exit
@@ -34,7 +41,7 @@ static int sys_exit(uint32_t status, uint32_t arg2, uint32_t arg3, uint32_t arg4
     (void)arg3;
     (void)arg4;
     (void)arg5;
-    
+
     task_exit(status);
     return 0;  /* 不会到达这里 */
 }
@@ -306,7 +313,7 @@ static int sys_brk(uint32_t addr, uint32_t arg2, uint32_t arg3, uint32_t arg4, u
  *   envp - 环境变量列表
  * 返回：成功不返回，失败返回-1
  * ========================================== */
-static int sys_execve(uint32_t pathname, uint32_t argv, uint32_t envp, uint32_t arg4, uint32_t arg5)
+static int sys_execve_impl(uint32_t pathname, uint32_t argv, uint32_t envp, uint32_t arg4, uint32_t arg5)
 {
     (void)argv;
     (void)envp;
@@ -371,7 +378,7 @@ static int sys_execve(uint32_t pathname, uint32_t argv, uint32_t envp, uint32_t 
 }
 
 /* ==========================================
- * 函数：sys_waitpid
+ * 函数：sys_waitpid_impl
  * 功能：等待子进程退出（简化版）
  * 参数：
  *   pid - 子进程PID
@@ -379,7 +386,7 @@ static int sys_execve(uint32_t pathname, uint32_t argv, uint32_t envp, uint32_t 
  *   options - 选项
  * 返回：子进程PID，失败返回-1
  * ========================================== */
-static int sys_waitpid(uint32_t pid, uint32_t status, uint32_t options, uint32_t arg4, uint32_t arg5)
+static int sys_waitpid_impl(uint32_t pid, uint32_t status, uint32_t options, uint32_t arg4, uint32_t arg5)
 {
     (void)options;
     (void)arg4;
@@ -413,23 +420,29 @@ static int sys_waitpid(uint32_t pid, uint32_t status, uint32_t options, uint32_t
 }
 
 /* ==========================================
- * 函数：syscall_handler
- * 功能：系统调用中断处理函数
+ * 函数：syscall_dispatch
+ * 功能：系统调用分发函数（从汇编调用）
  * 说明：
- *   从寄存器中读取系统调用号和参数
+ *   接收isr_regs_t指针，从寄存器中读取系统调用号和参数
  *   调用对应的系统调用处理函数
- *   返回值放在 eax 中
+ *   返回值放在regs->eax中
  * ========================================== */
-void syscall_handler(isr_regs_t *regs)
+void syscall_dispatch(isr_regs_t *regs)
 {
     uint32_t syscall_num = regs->eax;
-    
+
+    /* 更新当前任务的内核栈指针 */
+    task_t *current = get_current_task();
+    if (current != NULL) {
+        current_task_kernel_stack = (uint32_t)current->kernel_stack + current->kernel_stack_size;
+    }
+
     /* 检查系统调用号是否有效 */
     if (syscall_num >= MAX_SYSCALLS || syscall_table[syscall_num] == NULL) {
         regs->eax = -1;  /* 无效的系统调用号 */
         return;
     }
-    
+
     /* 调用对应的系统调用处理函数 */
     syscall_func_t func = syscall_table[syscall_num];
     regs->eax = func(regs->ebx, regs->ecx, regs->edx, regs->esi, regs->edi);
@@ -443,7 +456,7 @@ void syscall_init(void)
 {
     /* 清空系统调用表 */
     memset(syscall_table, 0, sizeof(syscall_table));
-    
+
     /* 注册系统调用处理函数 */
     syscall_table[SYS_EXIT] = (syscall_func_t)sys_exit;
     syscall_table[SYS_FORK] = (syscall_func_t)sys_fork;
@@ -453,9 +466,41 @@ void syscall_init(void)
     syscall_table[SYS_CLOSE] = (syscall_func_t)sys_close;
     syscall_table[SYS_GETPID] = (syscall_func_t)sys_getpid;
     syscall_table[SYS_BRK] = (syscall_func_t)sys_brk;
-    syscall_table[SYS_EXECVE] = (syscall_func_t)sys_execve;
-    syscall_table[SYS_WAITPID] = (syscall_func_t)sys_waitpid;
-    
-    /* 注册中断处理程序（ISR 0x80） */
-    isr_register_handler(0x80, syscall_handler);
+    syscall_table[SYS_EXECVE] = (syscall_func_t)sys_execve_impl;
+    syscall_table[SYS_WAITPID] = (syscall_func_t)sys_waitpid_impl;
+
+    /* 注意：int 0x80的门已经在isr_init中设置好了 */
+}
+
+/* ==========================================
+ * 包装函数：供外部调用
+ * ========================================== */
+
+/* int sys_execve(const char *filename, const char *args) */
+int sys_execve(const char *filename, const char *args)
+{
+    /* 通过系统调用执行 */
+    int syscall_num = SYS_EXECVE;
+    int result;
+
+    /* 调用系统调用 */
+    asm volatile (
+        "movl %1, %%eax\n\t"
+        "movl %2, %%ebx\n\t"
+        "movl %3, %%ecx\n\t"
+        "int $0x80\n\t"
+        "movl %%eax, %0"
+        : "=r"(result)
+        : "r"(syscall_num), "r"(filename), "r"(args)
+        : "eax", "ebx", "ecx", "memory"
+    );
+
+    return result;
+}
+
+/* int sys_waitpid(int pid, int *status, int options) */
+int sys_waitpid(int pid, int *status, int options)
+{
+    /* 直接通过系统调用表调用内部实现 */
+    return sys_waitpid_impl((uint32_t)pid, (uint32_t)status, (uint32_t)options, 0, 0);
 }

@@ -1,5 +1,5 @@
 /* ==========================================
- * 内核主文件 - kernel.c
+ * 内核主文件 - kernel.c v0.7.0
  * 功能：
  *   1. 内核主函数 kernel_main
  *   2. 初始化各个子系统
@@ -32,6 +32,7 @@
 #include "serial.h"
 #include "mouse.h"
 #include "ipc.h"
+#include "gdt.h"
 
 /* ==========================================
  * 外部函数声明
@@ -79,7 +80,7 @@ static void test_process2(void)
 static void test_process3(void)
 {
     while (1) {
-        vga_set_color(VGA_COLOR_YELLOW, VGA_COLOR_BLACK);
+        vga_set_color(VGA_COLOR_LIGHT_BROWN, VGA_COLOR_BLACK);
         vga_printf("[Process 3] Ticks: %d\n", pit_get_ticks());
         for (int i = 0; i < 500000; i++) {
             asm volatile ("nop");
@@ -124,6 +125,12 @@ void kernel_main(void)
     /* 初始化内存管理 */
     vga_puts("Initializing memory management...\n");
     klog_log("mem", "Initializing memory management subsystem");
+
+    /* 初始化GDT和TSS */
+    gdt_init();
+    tss_init();
+    vga_puts("  [✓] GDT and TSS (Global Descriptor Table)\n");
+    klog_log("mem", "GDT and TSS initialized");
 
     /* 初始化物理内存管理器 */
     pmm_init();
@@ -238,7 +245,7 @@ void kernel_main(void)
     int part_count = mbr_list_partitions(0, partitions, 4);
     if (part_count > 0) {
         vga_printf("  Found %d partition(s)\n", part_count);
-        klog_log("fs", "Found %d MBR partition(s)", part_count);
+        klog_logf("fs", "Found %d MBR partition(s)", part_count);
         
         for (int i = 0; i < part_count; i++) {
             vga_printf("    Partition %d: %s, %d MB, LBA start: %d\n",
@@ -293,7 +300,7 @@ void kernel_main(void)
 
     vga_printf("Total processes: %d\n\n", get_task_count());
 
-    vga_set_color(VGA_COLOR_YELLOW, VGA_COLOR_BLACK);
+    vga_set_color(VGA_COLOR_LIGHT_BROWN, VGA_COLOR_BLACK);
     vga_puts("Starting scheduler... (watch the processes run!)\n");
     vga_puts("Press any key to enter shell\n\n");
     vga_set_color(VGA_COLOR_WHITE, VGA_COLOR_BLACK);

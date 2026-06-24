@@ -5,7 +5,7 @@
 #include "pit.h"
 #include "isr.h"
 #include "pic.h"
-#include "process.h"
+#include "task.h"
 #include "types.h"
 
 /* 系统滴答计数器 */
@@ -22,7 +22,7 @@ static void pit_handler(isr_regs_t *regs) {
     tick_count++;
 
     /* 驱动进程调度 */
-    process_tick();
+    task_tick();
 }
 
 /* ==========================================

@@ -12,7 +12,8 @@
 #include "paging.h"
 
 #include "vfs.h"
-n/* 最大文件描述符数 */
+
+/* 最大文件描述符数 */
 #define MAX_FDS  32
 /* 进程状态 */
 typedef enum {

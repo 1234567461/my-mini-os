@@ -7,6 +7,11 @@
 #include "vga.h"
 #include "string.h"
 #include "pic.h"
+#include "gdt.h"
+#include "task.h"
+
+/* 外部汇编函数声明 */
+extern void syscall_handler_stub(void);
 
 /* 中断处理函数表 */
 static isr_handler_t isr_handlers[256] = {NULL};
@@ -122,6 +127,11 @@ void isr_exception_handler(isr_regs_t *regs) {
 }
 
 /* ==========================================
+ * 系统调用中断处理（int 0x80）
+ * ========================================== */
+extern void syscall_handler(isr_regs_t *regs);
+
+/* ==========================================
  * 初始化ISR
  * ========================================== */
 void isr_init() {
@@ -179,4 +189,8 @@ void isr_init() {
     idt_set_gate(45, (uint32_t)irq13, 0x08, IDT_INT_GATE | IDT_PRESENT | IDT_RING0);
     idt_set_gate(46, (uint32_t)irq14, 0x08, IDT_INT_GATE | IDT_PRESENT | IDT_RING0);
     idt_set_gate(47, (uint32_t)irq15, 0x08, IDT_INT_GATE | IDT_PRESENT | IDT_RING0);
+
+    /* 设置系统调用中断门（0x80）- 用户态可调用 */
+    idt_set_gate(0x80, (uint32_t)syscall_handler_stub, 0x08,
+                 IDT_INT_GATE | IDT_PRESENT | IDT_RING3);
 }
