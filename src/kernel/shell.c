@@ -62,6 +62,14 @@ static const char *help_text =
     "  cd         - Change directory\n"
     "  pwd        - Print working directory\n"
     "  touch      - Create empty file\n"
+    "  cp         - Copy file (cp <src> <dst>)\n"
+    "  mv         - Move/rename file (mv <src> <dst>)\n"
+    "  ln         - Create link (ln <target> <link>)\n"
+    "  chmod      - Change permissions (chmod <mode> <file>)\n"
+    "  find       - Find files (find <dir> <pattern>)\n"
+    "  tree       - Show directory tree\n"
+    "  wc         - Count lines/chars (wc <file>)\n"
+    "  hexdump    - Hex dump file (hexdump <file> [bytes])\n"
     "  partitions - Show disk partition table\n"
     "  mouse      - Show mouse status\n"
     "  serial     - Serial port test\n"
@@ -928,12 +936,605 @@ static void cmd_run(const char *args)
 }
 
 /* ==========================================
+ * 函数：cmd_cp
+ * 功能：复制文件
+ * 用法：cp <源文件> <目标文件>
+ * ========================================== */
+static void cmd_cp(const char *args)
+{
+    char src[128], dst[128];
+    const char *p = args;
+
+    /* 跳过空格 */
+    while (*p == ' ' || *p == '\t') p++;
+
+    /* 解析源文件 */
+    int i = 0;
+    while (*p && *p != ' ' && *p != '\t' && i < 127) {
+        src[i++] = *p++;
+    }
+    src[i] = '\0';
+
+    if (i == 0) {
+        vga_puts("Usage: cp <source> <destination>\n");
+        return;
+    }
+
+    /* 跳过空格 */
+    while (*p == ' ' || *p == '\t') p++;
+
+    /* 解析目标文件 */
+    i = 0;
+    while (*p && *p != ' ' && *p != '\t' && i < 127) {
+        dst[i++] = *p++;
+    }
+    dst[i] = '\0';
+
+    if (i == 0) {
+        vga_puts("Usage: cp <source> <destination>\n");
+        return;
+    }
+
+    /* 打开源文件 */
+    vfs_file_t *src_file = vfs_open(src, VFS_O_RDONLY);
+    if (src_file == NULL) {
+        vga_set_color(VGA_COLOR_LIGHT_RED, VGA_COLOR_BLACK);
+        vga_printf("cp: cannot open '%s': No such file\n", src);
+        vga_set_color(VGA_COLOR_WHITE, VGA_COLOR_BLACK);
+        return;
+    }
+
+    /* 创建目标文件 */
+    vfs_file_t *dst_file = vfs_open(dst, VFS_O_WRONLY | VFS_O_CREAT | VFS_O_TRUNC);
+    if (dst_file == NULL) {
+        vga_set_color(VGA_COLOR_LIGHT_RED, VGA_COLOR_BLACK);
+        vga_printf("cp: cannot create '%s'\n", dst);
+        vga_set_color(VGA_COLOR_WHITE, VGA_COLOR_BLACK);
+        vfs_close(src_file);
+        return;
+    }
+
+    /* 复制内容 */
+    char buf[512];
+    int total = 0;
+    int bytes_read;
+    while ((bytes_read = vfs_read(src_file, buf, sizeof(buf))) > 0) {
+        int bytes_written = vfs_write(dst_file, buf, bytes_read);
+        if (bytes_written < 0) {
+            vga_set_color(VGA_COLOR_LIGHT_RED, VGA_COLOR_BLACK);
+            vga_printf("cp: write error\n");
+            vga_set_color(VGA_COLOR_WHITE, VGA_COLOR_BLACK);
+            break;
+        }
+        total += bytes_written;
+    }
+
+    vfs_close(src_file);
+    vfs_close(dst_file);
+
+    vga_printf("'%s' -> '%s' (%d bytes)\n", src, dst, total);
+}
+
+/* ==========================================
+ * 函数：cmd_mv
+ * 功能：移动/重命名文件
+ * 用法：mv <源> <目标>
+ * ========================================== */
+static void cmd_mv(const char *args)
+{
+    char src[128], dst[128];
+    const char *p = args;
+
+    while (*p == ' ' || *p == '\t') p++;
+
+    int i = 0;
+    while (*p && *p != ' ' && *p != '\t' && i < 127) {
+        src[i++] = *p++;
+    }
+    src[i] = '\0';
+
+    if (i == 0) {
+        vga_puts("Usage: mv <source> <destination>\n");
+        return;
+    }
+
+    while (*p == ' ' || *p == '\t') p++;
+
+    i = 0;
+    while (*p && *p != ' ' && *p != '\t' && i < 127) {
+        dst[i++] = *p++;
+    }
+    dst[i] = '\0';
+
+    if (i == 0) {
+        vga_puts("Usage: mv <source> <destination>\n");
+        return;
+    }
+
+    /* 简单的实现：先复制再删除源 */
+    /* 打开源文件 */
+    vfs_file_t *src_file = vfs_open(src, VFS_O_RDONLY);
+    if (src_file == NULL) {
+        vga_set_color(VGA_COLOR_LIGHT_RED, VGA_COLOR_BLACK);
+        vga_printf("mv: cannot access '%s': No such file\n", src);
+        vga_set_color(VGA_COLOR_WHITE, VGA_COLOR_BLACK);
+        return;
+    }
+
+    /* 创建目标文件 */
+    vfs_file_t *dst_file = vfs_open(dst, VFS_O_WRONLY | VFS_O_CREAT | VFS_O_TRUNC);
+    if (dst_file == NULL) {
+        vga_set_color(VGA_COLOR_LIGHT_RED, VGA_COLOR_BLACK);
+        vga_printf("mv: cannot create '%s'\n", dst);
+        vga_set_color(VGA_COLOR_WHITE, VGA_COLOR_BLACK);
+        vfs_close(src_file);
+        return;
+    }
+
+    /* 复制内容 */
+    char buf[512];
+    int total = 0;
+    int bytes_read;
+    while ((bytes_read = vfs_read(src_file, buf, sizeof(buf))) > 0) {
+        int bytes_written = vfs_write(dst_file, buf, bytes_read);
+        if (bytes_written < 0) break;
+        total += bytes_written;
+    }
+
+    vfs_close(src_file);
+    vfs_close(dst_file);
+
+    /* 删除源文件 */
+    vfs_unlink(src);
+
+    vga_printf("'%s' -> '%s' (%d bytes)\n", src, dst, total);
+}
+
+/* ==========================================
+ * 函数：cmd_ln
+ * 功能：创建链接
+ * 用法：ln <目标> <链接名>
+ * ========================================== */
+static void cmd_ln(const char *args)
+{
+    char target[128], linkname[128];
+    const char *p = args;
+
+    while (*p == ' ' || *p == '\t') p++;
+
+    int i = 0;
+    while (*p && *p != ' ' && *p != '\t' && i < 127) {
+        target[i++] = *p++;
+    }
+    target[i] = '\0';
+
+    if (i == 0) {
+        vga_puts("Usage: ln <target> <linkname>\n");
+        return;
+    }
+
+    while (*p == ' ' || *p == '\t') p++;
+
+    i = 0;
+    while (*p && *p != ' ' && *p != '\t' && i < 127) {
+        linkname[i++] = *p++;
+    }
+    linkname[i] = '\0';
+
+    if (i == 0) {
+        vga_puts("Usage: ln <target> <linkname>\n");
+        return;
+    }
+
+    vga_set_color(VGA_COLOR_LIGHT_RED, VGA_COLOR_BLACK);
+    vga_puts("ln: symbolic links not fully supported\n");
+    vga_printf("  Note: '%s' is now a copy of '%s'\n", linkname, target);
+    vga_set_color(VGA_COLOR_WHITE, VGA_COLOR_BLACK);
+
+    /* 简化实现：复制文件 */
+    /* 打开目标文件 */
+    vfs_file_t *target_file = vfs_open(target, VFS_O_RDONLY);
+    if (target_file == NULL) {
+        vga_printf("ln: cannot access '%s': No such file\n", target);
+        return;
+    }
+
+    /* 创建链接文件 */
+    vfs_file_t *link_file = vfs_open(linkname, VFS_O_WRONLY | VFS_O_CREAT | VFS_O_TRUNC);
+    if (link_file == NULL) {
+        vga_printf("ln: cannot create '%s'\n", linkname);
+        vfs_close(target_file);
+        return;
+    }
+
+    /* 复制内容 */
+    char buf[512];
+    while (1) {
+        int bytes_read = vfs_read(target_file, buf, sizeof(buf));
+        if (bytes_read <= 0) break;
+        vfs_write(link_file, buf, bytes_read);
+    }
+
+    vfs_close(target_file);
+    vfs_close(link_file);
+
+    vga_printf("'%s' -> '%s'\n", linkname, target);
+}
+
+/* ==========================================
+ * 函数：cmd_chmod
+ * 功能：改变文件权限
+ * 用法：chmod <权限> <文件>
+ * ========================================== */
+static void cmd_chmod(const char *args)
+{
+    char mode_str[32], filename[128];
+    const char *p = args;
+
+    while (*p == ' ' || *p == '\t') p++;
+
+    int i = 0;
+    while (*p && *p != ' ' && *p != '\t' && i < 31) {
+        mode_str[i++] = *p++;
+    }
+    mode_str[i] = '\0';
+
+    if (i == 0) {
+        vga_puts("Usage: chmod <mode> <file>\n");
+        vga_puts("  Mode: rwx (read=4, write=2, execute=1)\n");
+        return;
+    }
+
+    while (*p == ' ' || *p == '\t') p++;
+
+    i = 0;
+    while (*p && *p != ' ' && *p != '\t' && i < 127) {
+        filename[i++] = *p++;
+    }
+    filename[i] = '\0';
+
+    if (i == 0) {
+        vga_puts("Usage: chmod <mode> <file>\n");
+        return;
+    }
+
+    vga_set_color(VGA_COLOR_LIGHT_RED, VGA_COLOR_BLACK);
+    vga_printf("chmod: permission model not fully implemented\n");
+    vga_printf("  Would set mode '%s' on '%s'\n", mode_str, filename);
+    vga_set_color(VGA_COLOR_WHITE, VGA_COLOR_BLACK);
+}
+
+/* ==========================================
+ * 函数：cmd_find
+ * 功能：查找文件
+ * 用法：find <目录> <文件名>
+ * ========================================== */
+static void cmd_find(const char *args)
+{
+    char dirname[128], filename[128];
+    const char *p = args;
+
+    while (*p == ' ' || *p == '\t') p++;
+
+    int i = 0;
+    while (*p && *p != ' ' && *p != '\t' && i < 127) {
+        dirname[i++] = *p++;
+    }
+    dirname[i] = '\0';
+
+    if (i == 0) {
+        vga_puts("Usage: find <directory> <filename>\n");
+        return;
+    }
+
+    while (*p == ' ' || *p == '\t') p++;
+
+    i = 0;
+    while (*p && *p != ' ' && *p != '\t' && i < 127) {
+        filename[i++] = *p++;
+    }
+    filename[i] = '\0';
+
+    if (i == 0) {
+        vga_puts("Usage: find <directory> <filename>\n");
+        return;
+    }
+
+    vga_printf("Searching for '%s' in '%s'...\n", filename, dirname);
+
+    /* 简化实现：只在当前目录搜索 */
+    vfs_dirent_t dirents[64];
+    int count = vfs_readdir(dirname, dirents, 64);
+
+    if (count < 0) {
+        vga_printf("find: cannot access '%s': No such directory\n", dirname);
+        return;
+    }
+
+    int found = 0;
+    for (int j = 0; j < count; j++) {
+        /* 简单的子串匹配 */
+        int match = 1;
+        int k = 0;
+        while (filename[k] && dirents[j].name[k]) {
+            if (filename[k] != dirents[j].name[k]) {
+                match = 0;
+                break;
+            }
+            k++;
+        }
+        if (match && filename[k] == dirents[j].name[k]) {
+            vga_printf("./%s\n", dirents[j].name);
+            found++;
+        }
+    }
+
+    if (found == 0) {
+        vga_puts("No matches found.\n");
+    } else {
+        vga_printf("Found %d match(es).\n", found);
+    }
+}
+
+/* ==========================================
+ * 函数：cmd_tree
+ * 功能：显示目录树
+ * 用法：tree [目录]
+ * ========================================== */
+static void cmd_tree(const char *args)
+{
+    const char *dirname = args;
+
+    while (*dirname == ' ' || *dirname == '\t') dirname++;
+
+    if (*dirname == '\0') {
+        dirname = ".";
+    }
+
+    vga_printf("Directory tree: %s\n", dirname);
+    vga_puts("(Simplified listing)\n");
+
+    vfs_dirent_t dirents[64];
+    int count = vfs_readdir(dirname, dirents, 64);
+
+    if (count < 0) {
+        vga_printf("tree: cannot access '%s': No such directory\n", dirname);
+        return;
+    }
+
+    for (int i = 0; i < count; i++) {
+        if (dirents[i].type == VFS_DIR) {
+            vga_set_color(VGA_COLOR_LIGHT_BLUE, VGA_COLOR_BLACK);
+            vga_printf("[DIR]  %s/\n", dirents[i].name);
+        } else {
+            vga_set_color(VGA_COLOR_WHITE, VGA_COLOR_BLACK);
+            vga_printf("[FILE] %s\n", dirents[i].name);
+        }
+    }
+    vga_set_color(VGA_COLOR_WHITE, VGA_COLOR_BLACK);
+}
+
+/* ==========================================
+ * 函数：cmd_wc
+ * 功能：统计文件行数/字符数
+ * 用法：wc <文件>
+ * ========================================== */
+static void cmd_wc(const char *args)
+{
+    if (*args == '\0') {
+        vga_puts("Usage: wc <file>\n");
+        return;
+    }
+
+    /* 跳过空格 */
+    while (*args == ' ' || *args == '\t') args++;
+
+    vfs_file_t *file = vfs_open(args, VFS_O_RDONLY);
+    if (file == NULL) {
+        vga_set_color(VGA_COLOR_LIGHT_RED, VGA_COLOR_BLACK);
+        vga_printf("wc: cannot open '%s': No such file\n", args);
+        vga_set_color(VGA_COLOR_WHITE, VGA_COLOR_BLACK);
+        return;
+    }
+
+    char buf[512];
+    int lines = 0;
+    int chars = 0;
+    int bytes_read;
+
+    while ((bytes_read = vfs_read(file, buf, sizeof(buf))) > 0) {
+        chars += bytes_read;
+        for (int i = 0; i < bytes_read; i++) {
+            if (buf[i] == '\n') lines++;
+        }
+    }
+
+    vfs_close(file);
+
+    vga_printf("%7d %7d %7d %s\n", lines, chars, chars, args);
+}
+
+/* ==========================================
+ * 函数：cmd_hexdump
+ * 功能：十六进制显示文件内容
+ * 用法：hexdump <文件> [长度]
+ * ========================================== */
+static void cmd_hexdump(const char *args)
+{
+    if (*args == '\0') {
+        vga_puts("Usage: hexdump <file> [bytes]\n");
+        return;
+    }
+
+    /* 跳过空格 */
+    while (*args == ' ' || *args == '\t') args++;
+
+    char filename[128];
+    int i = 0;
+    while (*args && *args != ' ' && *args != '\t' && i < 127) {
+        filename[i++] = *args++;
+    }
+    filename[i] = '\0';
+
+    int max_bytes = 256;  /* 默认显示256字节 */
+    while (*args == ' ' || *args == '\t') args++;
+    if (*args >= '0' && *args <= '9') {
+        max_bytes = 0;
+        while (*args >= '0' && *args <= '9') {
+            max_bytes = max_bytes * 10 + (*args - '0');
+            args++;
+        }
+    }
+
+    vfs_file_t *file = vfs_open(filename, VFS_O_RDONLY);
+    if (file == NULL) {
+        vga_set_color(VGA_COLOR_LIGHT_RED, VGA_COLOR_BLACK);
+        vga_printf("hexdump: cannot open '%s': No such file\n", filename);
+        vga_set_color(VGA_COLOR_WHITE, VGA_COLOR_BLACK);
+        return;
+    }
+
+    char buf[16];
+    int offset = 0;
+    int bytes_read;
+
+    while ((bytes_read = vfs_read(file, buf, 16)) > 0 && offset < max_bytes) {
+        if (bytes_read > max_bytes - offset) {
+            bytes_read = max_bytes - offset;
+        }
+
+        vga_printf("%08x: ", offset);
+
+        /* 十六进制部分 */
+        for (int j = 0; j < 16; j++) {
+            if (j < bytes_read) {
+                vga_printf("%02x ", (unsigned char)buf[j]);
+            } else {
+                vga_puts("   ");
+            }
+            if (j == 7) vga_puts(" ");
+        }
+
+        vga_puts(" |");
+
+        /* ASCII部分 */
+        for (int j = 0; j < bytes_read; j++) {
+            unsigned char c = buf[j];
+            if (c >= 32 && c < 127) {
+                vga_putc(c);
+            } else {
+                vga_putc('.');
+            }
+        }
+
+        vga_puts("|\n");
+
+        offset += bytes_read;
+        if (offset >= max_bytes) break;
+    }
+
+    vfs_close(file);
+}
+
+/* ==========================================
+ * 函数：parse_redirection
+ * 功能：解析输入输出重定向
+ * 返回：0=成功, -1=失败
+ * ========================================== */
+static int parse_redirection(char *cmd, char **input_file, char **output_file, int *append)
+{
+    *input_file = NULL;
+    *output_file = NULL;
+    *append = 0;
+
+    char *p = cmd;
+    char *last_arg = NULL;
+
+    /* 找到最后一个非空字符 */
+    while (*p) {
+        if (*p != ' ' && *p != '\t') {
+            last_arg = p;
+        }
+        p++;
+    }
+
+    if (last_arg == NULL) return 0;
+
+    /* 检查是否有重定向符号 */
+    char *redirect_pos = NULL;
+    int is_output = 0;
+    int is_append = 0;
+
+    p = cmd;
+    while (*p) {
+        if (*p == '>') {
+            if (*(p + 1) == '>') {
+                is_append = 1;
+                redirect_pos = p;
+                is_output = 1;
+                break;
+            } else {
+                is_append = 0;
+                redirect_pos = p;
+                is_output = 1;
+                break;
+            }
+        } else if (*p == '<') {
+            redirect_pos = p;
+            is_output = 0;
+            break;
+        }
+        p++;
+    }
+
+    if (redirect_pos == NULL) return 0;
+
+    /* 分割命令和重定向部分 */
+    *redirect_pos = '\0';
+    redirect_pos++;
+
+    if (is_append) redirect_pos++;  /* 跳过第二个> */
+
+    /* 跳过空格 */
+    while (*redirect_pos == ' ' || *redirect_pos == '\t') {
+        redirect_pos++;
+    }
+
+    /* 提取文件名 */
+    char *filename = redirect_pos;
+    while (*redirect_pos && *redirect_pos != ' ' && *redirect_pos != '\t') {
+        redirect_pos++;
+    }
+    *redirect_pos = '\0';
+
+    if (is_output) {
+        *output_file = filename;
+        *append = is_append;
+    } else {
+        *input_file = filename;
+    }
+
+    return 0;
+}
+
+/* ==========================================
  * 函数：execute_command
  * 功能：执行一条命令
  * ========================================== */
-static void execute_command(const char *cmd)
+static void execute_command(const char *cmd_orig)
 {
-    const char *p = cmd;
+    /* 创建命令副本以便修改 */
+    char cmd_copy[256];
+    strncpy(cmd_copy, cmd_orig, 255);
+    cmd_copy[255] = '\0';
+
+    /* 解析重定向 */
+    char *input_file = NULL;
+    char *output_file = NULL;
+    int append = 0;
+    parse_redirection(cmd_copy, &input_file, &output_file, &append);
+
+    const char *p = cmd_copy;
 
     /* 跳过开头的空格 */
     while (*p == ' ' || *p == '\t') {
@@ -978,6 +1579,22 @@ static void execute_command(const char *cmd)
         cmd_exec(args);
     } else if (strcmp(cmd_name, "run") == 0) {
         cmd_run(args);
+    } else if (strcmp(cmd_name, "cp") == 0) {
+        cmd_cp(args);
+    } else if (strcmp(cmd_name, "mv") == 0) {
+        cmd_mv(args);
+    } else if (strcmp(cmd_name, "ln") == 0) {
+        cmd_ln(args);
+    } else if (strcmp(cmd_name, "chmod") == 0) {
+        cmd_chmod(args);
+    } else if (strcmp(cmd_name, "find") == 0) {
+        cmd_find(args);
+    } else if (strcmp(cmd_name, "tree") == 0) {
+        cmd_tree(args);
+    } else if (strcmp(cmd_name, "wc") == 0) {
+        cmd_wc(args);
+    } else if (strcmp(cmd_name, "hexdump") == 0) {
+        cmd_hexdump(args);
     } else if (strcmp(cmd_name, "date") == 0) {
         rtc_time_t time;
         rtc_get_time(&time);

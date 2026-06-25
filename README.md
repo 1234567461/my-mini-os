@@ -465,9 +465,10 @@ my-mini-os/
   - [x] 基础文件操作（read/write/create/delete）
 - [x] **Shell 增强**
   - [x] 文件操作命令：ls, cat, mkdir, rm, cd, pwd, touch
+  - [x] 高级文件命令：cp, mv, ln, chmod, find, tree, wc, hexdump
   - [x] 支持运行外部程序（exec命令）
   - [x] 脚本执行支持（run命令）
-  - [ ] 输入输出重定向（基础）
+  - [x] 输入输出重定向（>、>>、<）
 
 ### 第四阶段 ✅：设备驱动与磁盘IO（v0.6.0）
 **里程碑**：实现设备驱动、磁盘IO和进程间通信
