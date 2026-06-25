@@ -1,6 +1,80 @@
 # Changelog
 All notable changes to this project will be documented in this file.
 
+## [v1.0.0-a11y] - 2026-06-25
+### Overview
+♿ 无障碍支持版本 - 为视障、听障、语障人士提供完善的辅助功能
+
+> **特别说明**：这是一个具有社会意义的版本，致力于让每个人都能平等地使用计算技术。
+> 内核仅增加约12KB（140KB → 152KB），极致压缩，不影响性能。
+
+### 新增无障碍功能
+
+#### 👁️ 视障辅助
+- **高对比度模式** - 6种配色方案可选
+  - 方案0：正常配色（黑底白字）
+  - 方案1：高对比度（黑底黄字，最清晰）
+  - 方案2：黑底白字（经典终端）
+  - 方案3：白底黑字（纸质阅读感）
+  - 方案4：黑底绿字（复古终端）
+  - 方案5：低饱和度（护眼模式）
+- **屏幕阅读器** - 通过COM1串口输出文字
+  - 可外接专业屏幕阅读器设备
+  - 115200波特率，标准串口协议
+  - 所有文本内容自动同步输出
+- **大字体模式** - 辅助低视力用户
+
+#### 👂 听障辅助
+- **视觉提示系统** - 用屏幕闪烁替代蜂鸣声
+  - 可配置闪烁次数
+  - 醒目颜色变化提示
+- **视觉警报** - 重要事件的强烈视觉反馈
+  - 红底黄字 + 闪烁边框
+  - 确保不会错过任何提示
+
+#### 🗣️ 语障辅助
+- **预设短语系统** - 16个可自定义短语
+  - 内置8个常用短语：你好、谢谢、是的、不是、请帮助我、我需要水、我需要上厕所、我饿了
+  - 支持自定义短语内容
+  - 一键输出到屏幕和串口
+- **快速交流** - 数字键快速选择短语
+
+#### 🛠️ 通用无障碍功能
+- **`a11y` 命令** - 无障碍功能总控
+  - `a11y help` - 帮助信息
+  - `a11y status` - 当前状态查询
+  - `a11y menu` - 交互式设置菜单
+  - `a11y contrast` - 高对比度开关
+  - `a11y largefont` - 大字体开关
+  - `a11y screenread` - 屏幕阅读器开关
+  - `a11y visualbeep` - 视觉提示开关
+  - `a11y beep` - 测试视觉提示
+  - `a11y scheme <n>` - 切换配色方案
+- **`phrase` 命令** - 预设短语管理
+  - `phrase list` - 列出所有短语
+  - `phrase <n>` - 输出第n个短语
+  - `phrase set <n> <text>` - 设置短语
+
+### 性能与体积
+- 内核体积增加：~12KB（140KB → 152KB）
+- 镜像大小：1.44MB（不变）
+- 启动时间：无影响
+- 模块化设计：功能按需启用，不启用不消耗资源
+
+### Development Progress
+- [x] v0.1.0 - v0.2.0: Boot sector, real mode basics
+- [x] v0.3.0: 32-bit protected mode, C kernel, basic drivers
+- [x] v0.4.0: Memory isolation, large pages, page faults
+- [x] v0.5.0: User permissions, VFS, ramfs, disk driver, FAT16
+- [x] v0.6.0: IPC, device drivers (serial/RTC/mouse), FAT32, MBR, ELF loader, user lib
+- [x] v0.7.0: Network support (TCP/IP, ARP, DHCP, UDP, ICMP, NE2000 driver)
+- [x] v0.8.0: GUI (window manager, event system, graphics engine, taskbar, controls)
+- [x] v0.9.0: Advanced GUI enhancements, network stack improvements
+- [x] v1.0.0: Stable release with VBE/VESA graphics support 🎉
+- [x] v1.0.0-a11y: Accessibility support (for visual/hearing/speech impairments) ♿
+
+---
+
 ## [v1.0.0] - 2026-06-26
 ### Overview
 v1.0.0 是 My Mini OS 的第一个正式稳定版本！经过多个阶段的开发，这个从零开始构建的操作系统已经具备了完整的内核、文件系统、网络协议栈和图形用户界面。

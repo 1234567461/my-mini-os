@@ -34,6 +34,7 @@
 #include "ipc.h"
 #include "gdt.h"
 #include "vbe.h"
+#include "accessibility.h"
 
 /* ==========================================
  * 外部函数声明
@@ -224,6 +225,10 @@ void kernel_main(void)
     /* 初始化串口 */
     serial_init_com1();
     klog_log("drv", "Serial port COM1 initialized (115200 baud)");
+
+    /* 初始化无障碍系统 */
+    accessibility_init();
+    klog_log("a11y", "Accessibility subsystem initialized");
 
     /* 初始化鼠标 */
     mouse_init();

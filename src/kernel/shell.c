@@ -23,6 +23,7 @@
 #include "mouse.h"
 #include "serial.h"
 #include "vbe.h"
+#include "accessibility.h"
 
 /* 命令缓冲区大小 */
 #define CMD_BUF_SIZE 128
@@ -81,7 +82,9 @@ static const char *help_text =
     "  arp        - Show ARP cache\n"
     "  dhcp       - DHCP client status/request\n"
     "  netstat    - Show network statistics\n"
-  "  vbe        - Show VBE/VESA graphics mode info\n";
+  "  vbe        - Show VBE/VESA graphics mode info\n"
+  "  a11y       - Accessibility options (a11y help for details)\n"
+  "  phrase     - Preset phrases for speech impairment\n";
 
 /* ==========================================
  * 函数：cmd_help
@@ -1686,6 +1689,77 @@ static void execute_command(const char *cmd_orig)
             vga_set_color(VGA_COLOR_LIGHT_BROWN, VGA_COLOR_BLACK);
             vga_puts("  Status: Not available (using VGA text mode)\n");
             vga_set_color(VGA_COLOR_WHITE, VGA_COLOR_BLACK);
+        }
+    } else if (strcmp(cmd_name, "a11y") == 0) {
+        /* 无障碍功能命令 */
+        if (strcmp(args, "help") == 0 || *args == '\0') {
+            accessibility_help();
+        } else if (strcmp(args, "status") == 0) {
+            accessibility_show_status();
+        } else if (strcmp(args, "menu") == 0) {
+            accessibility_menu();
+        } else if (strcmp(args, "contrast") == 0) {
+            if (accessibility_is_enabled(A11Y_HIGH_CONTRAST)) {
+                accessibility_disable(A11Y_HIGH_CONTRAST);
+            } else {
+                accessibility_enable(A11Y_HIGH_CONTRAST);
+            }
+        } else if (strcmp(args, "largefont") == 0) {
+            if (accessibility_is_enabled(A11Y_LARGE_FONT)) {
+                accessibility_disable(A11Y_LARGE_FONT);
+            } else {
+                accessibility_enable(A11Y_LARGE_FONT);
+            }
+        } else if (strcmp(args, "screenread") == 0) {
+            if (accessibility_is_enabled(A11Y_SCREEN_READER)) {
+                accessibility_disable(A11Y_SCREEN_READER);
+                vga_puts("Screen reader disabled\n");
+            } else {
+                accessibility_enable(A11Y_SCREEN_READER);
+                vga_puts("Screen reader enabled (COM1 serial output)\n");
+            }
+        } else if (strcmp(args, "visualbeep") == 0) {
+            if (accessibility_is_enabled(A11Y_VISUAL_BEEP)) {
+                accessibility_disable(A11Y_VISUAL_BEEP);
+                vga_puts("Visual beep disabled\n");
+            } else {
+                accessibility_enable(A11Y_VISUAL_BEEP);
+                vga_puts("Visual beep enabled\n");
+            }
+        } else if (strcmp(args, "beep") == 0) {
+            visual_beep();
+        } else if (strncmp(args, "scheme ", 7) == 0) {
+            int scheme = args[7] - '0';
+            if (scheme >= 0 && scheme <= 5) {
+                accessibility_set_color_scheme((color_scheme_t)scheme);
+                vga_printf("Color scheme set to: %d\n", scheme);
+            } else {
+                vga_puts("Invalid scheme. Use 0-5\n");
+            }
+        } else {
+            vga_puts("Unknown a11y option. Try 'a11y help'\n");
+        }
+    } else if (strcmp(cmd_name, "phrase") == 0) {
+        /* 预设短语命令（语障辅助） */
+        if (strcmp(args, "list") == 0) {
+            vga_set_color(VGA_COLOR_LIGHT_CYAN, VGA_COLOR_BLACK);
+            vga_puts("Preset phrases:\n");
+            vga_set_color(VGA_COLOR_WHITE, VGA_COLOR_BLACK);
+            for (int i = 0; i < 8; i++) {
+                vga_printf("  %d: %s\n", i, phrase_get(i));
+            }
+        } else if (*args >= '0' && *args <= '9') {
+            int idx = args[0] - '0';
+            phrase_speak(idx);
+        } else if (strncmp(args, "set ", 4) == 0) {
+            int idx = args[4] - '0';
+            const char *text = args + 6;
+            if (idx >= 0 && idx < 16) {
+                phrase_set(idx, text);
+                vga_printf("Phrase %d set to: %s\n", idx, text);
+            }
+        } else {
+            vga_puts("Usage: phrase <n> | phrase list | phrase set <n> <text>\n");
         }
     } else {
         vga_set_color(VGA_COLOR_LIGHT_RED, VGA_COLOR_BLACK);
