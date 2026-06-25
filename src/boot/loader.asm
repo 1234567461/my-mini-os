@@ -15,6 +15,26 @@ org 0x10000          ; 我们被加载到 0x10000 的位置
 mov si, loader_msg
 call print_string_16
 
+; ====== 尝试设置VBE/VESA图形模式 ======
+; 目标模式：640x480x32 (模式号 0x118 或自动检测)
+mov si, vbe_try_msg
+call print_string_16
+
+call detect_vbe_mode
+cmp ax, 0
+jne vbe_success
+
+; VBE失败，使用VGA文本模式
+mov si, vbe_fail_msg
+call print_string_16
+jmp vbe_done
+
+vbe_success:
+    mov si, vbe_ok_msg
+    call print_string_16
+
+vbe_done:
+
 ; ====== 加载内核到内存 ======
 mov si, load_kernel_msg
 call print_string_16
@@ -36,6 +56,17 @@ call disk_load
 ; ====== 切换到保护模式 ======
 mov si, switch_pm_msg
 call print_string_16
+
+; ====== 将VBE信息复制到约定地址 0x7000 ======
+; 内核会从这里读取VBE信息
+mov ax, cs
+mov ds, ax
+
+mov si, vbe_available
+mov di, 0x7000
+mov cx, 12         ; VBE信息大小: 1+2+2+1+2+4 = 12字节
+cld
+rep movsb
 
 cli                 ; 关中断
 lgdt [gdt_descriptor]  ; 加载GDT
@@ -89,6 +120,137 @@ disk_error:
     mov si, disk_err_msg
     call print_string_16
     jmp $
+
+; ==========================================
+; 函数：detect_vbe_mode
+; 功能：检测并设置VBE/VESA图形模式
+; 返回：AX=0 失败, AX=1 成功
+; 使用模式：640x480x32 (模式0x118)
+; VBE信息存储在 vbe_info 结构体中
+; ==========================================
+detect_vbe_mode:
+    pusha
+
+    ; 第一步：获取VBE控制器信息
+    mov ax, 0x4F00
+    mov di, vbe_info_block
+    int 0x10
+    cmp ax, 0x004F
+    jne .vbe_not_supported
+
+    ; 第二步：获取模式信息（尝试640x480x32 = 模式0x118）
+    mov ax, 0x4F01
+    mov cx, 0x118          ; 模式号：640x480x32
+    mov di, mode_info_block
+    int 0x10
+    cmp ax, 0x004F
+    jne .try_other_modes
+
+    ; 检查模式属性：是否支持线性帧缓冲
+    mov ax, [mode_info_block + 0x00]  ; ModeAttributes
+    test ax, 0x0100                    ; 线性帧缓冲支持
+    jz .try_other_modes
+
+    ; 获取分辨率和bpp
+    mov ax, [mode_info_block + 0x12]  ; XResolution
+    mov [vbe_width], ax
+    mov ax, [mode_info_block + 0x14]  ; YResolution
+    mov [vbe_height], ax
+    mov al, [mode_info_block + 0x19]  ; BitsPerPixel
+    mov [vbe_bpp], al
+    mov eax, [mode_info_block + 0x28] ; PhysBasePtr (线性帧缓冲地址)
+    mov [vbe_phys_addr], eax
+    mov ax, [mode_info_block + 0x10]  ; BytesPerScanLine
+    mov [vbe_pitch], ax
+
+    ; 第三步：设置图形模式
+    mov ax, 0x4F02
+    mov bx, 0x4118       ; 模式号 | 0x4000 (使用线性帧缓冲)
+    int 0x10
+    cmp ax, 0x004F
+    jne .try_other_modes
+
+    ; 成功
+    mov byte [vbe_available], 1
+    popa
+    mov ax, 1
+    ret
+
+.try_other_modes:
+    ; 尝试 640x480x24 (模式0x117)
+    mov ax, 0x4F01
+    mov cx, 0x117
+    mov di, mode_info_block
+    int 0x10
+    cmp ax, 0x004F
+    jne .try_640x480x16
+
+    mov ax, [mode_info_block + 0x00]
+    test ax, 0x0100
+    jz .try_640x480x16
+
+    mov ax, [mode_info_block + 0x12]
+    mov [vbe_width], ax
+    mov ax, [mode_info_block + 0x14]
+    mov [vbe_height], ax
+    mov al, [mode_info_block + 0x19]
+    mov [vbe_bpp], al
+    mov eax, [mode_info_block + 0x28]
+    mov [vbe_phys_addr], eax
+    mov ax, [mode_info_block + 0x10]
+    mov [vbe_pitch], ax
+
+    mov ax, 0x4F02
+    mov bx, 0x4117
+    int 0x10
+    cmp ax, 0x004F
+    jne .try_640x480x16
+
+    mov byte [vbe_available], 1
+    popa
+    mov ax, 1
+    ret
+
+.try_640x480x16:
+    ; 尝试 640x480x16 (模式0x114)
+    mov ax, 0x4F01
+    mov cx, 0x114
+    mov di, mode_info_block
+    int 0x10
+    cmp ax, 0x004F
+    jne .vbe_not_supported
+
+    mov ax, [mode_info_block + 0x00]
+    test ax, 0x0100
+    jz .vbe_not_supported
+
+    mov ax, [mode_info_block + 0x12]
+    mov [vbe_width], ax
+    mov ax, [mode_info_block + 0x14]
+    mov [vbe_height], ax
+    mov al, [mode_info_block + 0x19]
+    mov [vbe_bpp], al
+    mov eax, [mode_info_block + 0x28]
+    mov [vbe_phys_addr], eax
+    mov ax, [mode_info_block + 0x10]
+    mov [vbe_pitch], ax
+
+    mov ax, 0x4F02
+    mov bx, 0x4114
+    int 0x10
+    cmp ax, 0x004F
+    jne .vbe_not_supported
+
+    mov byte [vbe_available], 1
+    popa
+    mov ax, 1
+    ret
+
+.vbe_not_supported:
+    mov byte [vbe_available], 0
+    popa
+    xor ax, ax
+    ret
 
 ; ==========================================
 ; GDT - 全局描述符表
@@ -168,3 +330,21 @@ loader_msg      db '[Loader] Second stage loader loaded!', 0x0d, 0x0a, 0
 load_kernel_msg db '[Loader] Loading kernel...', 0x0d, 0x0a, 0
 switch_pm_msg   db '[Loader] Switching to 32-bit protected mode...', 0x0d, 0x0a, 0x0d, 0x0a, 0
 disk_err_msg    db '[Error] Disk read failed!', 0x0d, 0x0a, 0
+vbe_try_msg     db '[Loader] Detecting VBE/VESA graphics...', 0x0d, 0x0a, 0
+vbe_ok_msg      db '[Loader] VBE mode set: 640x480', 0x0d, 0x0a, 0
+vbe_fail_msg    db '[Loader] VBE not available, using VGA text mode', 0x0d, 0x0a, 0
+
+; ==========================================
+; VBE信息缓冲区（与C内核共享）
+; 地址：0x8000 开始，确保在实模式可访问范围内
+; ==========================================
+vbe_info_block      equ 0x8000   ; VBE控制器信息块 (512字节)
+mode_info_block     equ 0x8200   ; 模式信息块 (256字节)
+
+; VBE信息全局变量（供内核读取）
+vbe_available   db 0            ; 1=VBE可用, 0=不可用
+vbe_width       dw 640          ; 水平分辨率
+vbe_height      dw 480          ; 垂直分辨率
+vbe_bpp         db 32           ; 每像素位数
+vbe_pitch       dw 2560         ; 每行字节数 (640*4)
+vbe_phys_addr   dd 0xE0000000   ; 线性帧缓冲物理地址

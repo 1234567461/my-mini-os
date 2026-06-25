@@ -22,6 +22,7 @@
 #include "mbr.h"
 #include "mouse.h"
 #include "serial.h"
+#include "vbe.h"
 
 /* 命令缓冲区大小 */
 #define CMD_BUF_SIZE 128
@@ -79,7 +80,8 @@ static const char *help_text =
     "  ping       - Ping a host\n"
     "  arp        - Show ARP cache\n"
     "  dhcp       - DHCP client status/request\n"
-    "  netstat    - Show network statistics\n";
+    "  netstat    - Show network statistics\n"
+  "  vbe        - Show VBE/VESA graphics mode info\n";
 
 /* ==========================================
  * 函数：cmd_help
@@ -119,23 +121,29 @@ static void cmd_echo(const char *args)
 static void cmd_about(void)
 {
     vga_set_color(VGA_COLOR_LIGHT_GREEN, VGA_COLOR_BLACK);
-    vga_puts("My Mini OS\n");
+    vga_puts("My Mini OS v1.0.0\n");
     vga_set_color(VGA_COLOR_WHITE, VGA_COLOR_BLACK);
     vga_puts("A tiny operating system built from scratch.\n\n");
     vga_puts("Features:\n");
     vga_puts("  - 16-bit real mode bootloader\n");
     vga_puts("  - 32-bit protected mode kernel\n");
     vga_puts("  - C language kernel\n");
-    vga_puts("  - VGA text output\n");
+    vga_puts("  - VGA text + VBE graphics output\n");
     vga_puts("  - Interrupt handling (IDT/ISR)\n");
     vga_puts("  - Programmable Interrupt Controller\n");
     vga_puts("  - PIT timer (system clock)\n");
-    vga_puts("  - PS/2 keyboard driver\n");
+    vga_puts("  - PS/2 keyboard & mouse driver\n");
     vga_puts("  - Physical memory management\n");
-    vga_puts("  - Paging support\n");
+    vga_puts("  - Paging support (4KB + 4MB large pages)\n");
     vga_puts("  - Heap allocator (kmalloc/kfree)\n");
-    vga_puts("  - Task scheduler (Round Robin)\n");
-    vga_puts("  - Simple shell with many commands\n\n");
+    vga_puts("  - Task scheduler (Round Robin + priority)\n");
+    vga_puts("  - Virtual File System (VFS)\n");
+    vga_puts("  - FAT16/FAT32 filesystem support\n");
+    vga_puts("  - TCP/IP network stack\n");
+    vga_puts("  - NE2000 compatible NIC driver\n");
+    vga_puts("  - Graphical User Interface (GUI)\n");
+    vga_puts("  - Window manager + controls\n");
+    vga_puts("  - 50+ shell commands\n\n");
     vga_puts("Made with <3 for learning purposes\n");
 }
 
@@ -164,11 +172,11 @@ static void cmd_version(void)
     vga_set_color(VGA_COLOR_LIGHT_CYAN, VGA_COLOR_BLACK);
     vga_puts("My Mini OS ");
     vga_set_color(VGA_COLOR_WHITE, VGA_COLOR_BLACK);
-    vga_puts("v0.6.0\n");
+    vga_puts("v1.0.0\n");
     vga_puts("Kernel: 32-bit protected mode\n");
     vga_puts("Memory: 128MB physical, 4MB large page support\n");
-    vga_puts("Features: memory isolation, per-process address space\n");
-    vga_puts("Build: Learning Edition\n");
+    vga_puts("Features: VFS, FAT16/32, TCP/IP stack, GUI, VBE graphics\n");
+    vga_puts("Build: Stable Release\n");
 }
 
 /* ==========================================
@@ -1663,6 +1671,22 @@ static void execute_command(const char *cmd_orig)
         cmd_serial(args);
     } else if (strcmp(cmd_name, "gui") == 0) {
         cmd_gui();
+    } else if (strcmp(cmd_name, "vbe") == 0) {
+        vbe_info_t *vbe = vbe_get_info();
+        vga_set_color(VGA_COLOR_LIGHT_CYAN, VGA_COLOR_BLACK);
+        vga_puts("VBE/VESA Graphics Mode Info:\n");
+        vga_set_color(VGA_COLOR_WHITE, VGA_COLOR_BLACK);
+        if (vbe->available) {
+            vga_printf("  Status:      Available\n");
+            vga_printf("  Resolution:  %d x %d\n", vbe->width, vbe->height);
+            vga_printf("  Color depth: %d bpp\n", vbe->bpp);
+            vga_printf("  Pitch:       %d bytes/line\n", vbe->pitch);
+            vga_printf("  Framebuffer: 0x%x\n", vbe->phys_addr);
+        } else {
+            vga_set_color(VGA_COLOR_LIGHT_BROWN, VGA_COLOR_BLACK);
+            vga_puts("  Status: Not available (using VGA text mode)\n");
+            vga_set_color(VGA_COLOR_WHITE, VGA_COLOR_BLACK);
+        }
     } else {
         vga_set_color(VGA_COLOR_LIGHT_RED, VGA_COLOR_BLACK);
         vga_printf("Command not found: %s\n", cmd_name);

@@ -147,6 +147,10 @@ void framebuffer_fill_rect(int x, int y, int width, int height, uint32_t color);
 void framebuffer_blit(int x, int y, int width, int height, uint32_t *data);
 void framebuffer_copy(int dest_x, int dest_y, int src_x, int src_y, int width, int height);
 void framebuffer_flush(void);
+int framebuffer_get_width(void);
+int framebuffer_get_height(void);
+int framebuffer_get_pitch(void);
+int framebuffer_get_bpp(void);
 
 /* ==========================================
  * 图形绘制函数

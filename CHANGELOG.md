@@ -1,6 +1,170 @@
 # Changelog
 All notable changes to this project will be documented in this file.
 
+## [v1.0.0] - 2026-06-26
+### Overview
+v1.0.0 是 My Mini OS 的第一个正式稳定版本！经过多个阶段的开发，这个从零开始构建的操作系统已经具备了完整的内核、文件系统、网络协议栈和图形用户界面。
+
+### 里程碑
+- 🎉 **正式版发布**：从零开始的32位保护模式操作系统
+- 🖼️ **VBE/VESA图形支持**：兼容标准VESA BIOS扩展的图形模式
+- 📚 **完整功能集**：内核、文件系统、网络、GUI一应俱全
+
+### v1.0.0 新增特性
+
+#### VBE/VESA 图形模式支持
+- **VBE检测与设置** (`loader.asm`):
+  - 自动检测VBE/VESA BIOS扩展
+  - 支持640x480x32 (模式0x118)
+  - 降级支持：640x480x24 (0x117)、640x480x16 (0x114)
+  - 线性帧缓冲（Linear Framebuffer）支持
+- **VBE信息传递**：
+  - Boot loader → 内核通过约定内存地址(0x7000)传递VBE参数
+  - 动态分辨率、色深、帧缓冲地址传递
+- **内核VBE驱动** (`vbe.c`):
+  - VBE信息结构体定义
+  - 帧缓冲地址可写性验证
+  - 安全降级机制（VBE不可用时回退到VGA文本模式）
+- **帧缓冲驱动增强** (`framebuffer.c`):
+  - 动态分辨率支持（不再硬编码640x480）
+  - 使用真实pitch（行间距）计算像素地址
+  - 多色深支持（16/24/32 bpp）
+- **Shell命令**：
+  - 新增 `vbe` 命令：显示VBE图形模式信息
+
+#### 硬件兼容性说明
+> **重要提示**：本操作系统使用传统VBE/VESA (BIOS) 图形模式
+> - 在现代UEFI系统上，需要在BIOS设置中开启 **CSM (Compatibility Support Module)**
+> - 显卡需支持VBE/VESA DAC（模拟VGA输出）
+> - 推荐使用VGA接口或支持Legacy模式的显示器
+> - 纯UEFI GOP/HDMI/DP数字接口需要额外的驱动支持（未来版本）
+
+### v1.0.0 完整功能清单
+- ✅ **内核核心**
+  - 32位保护模式（x86）
+  - GDT/TSS 完整实现
+  - 中断系统（IDT + ISR + PIC）
+  - 物理内存管理（位图法）
+  - 分页机制（4KB小页 + 4MB大页）
+  - 堆分配器（kmalloc/kfree）
+  - 进程调度（时间片轮转 + 优先级）
+  - 系统调用（int 0x80）
+
+- ✅ **文件系统**
+  - 虚拟文件系统（VFS）抽象层
+  - RAM文件系统（ramfs）
+  - FAT16 文件系统
+  - FAT32 文件系统
+  - 块设备层 + 缓冲区缓存
+  - ATA/IDE 磁盘驱动（PIO模式）
+  - MBR分区表解析
+
+- ✅ **网络协议栈**
+  - NE2000 兼容网卡驱动
+  - 以太网帧封装/解封装
+  - ARP协议（地址解析）
+  - IPv4协议（含校验和）
+  - ICMP协议（ping）
+  - UDP协议
+  - TCP协议（简化版，含三次握手/四次挥手）
+  - Socket API（BSD风格）
+  - DHCP客户端（自动获取IP）
+
+- ✅ **图形用户界面（GUI）**
+  - 帧缓冲驱动（VBE/VESA模式）
+  - 图形引擎（Bresenham算法）
+  - 字体渲染（8x16位图字体）
+  - 窗口管理器（拖动、焦点、z-order）
+  - 事件系统（鼠标、键盘）
+  - 任务栏 + 开始菜单
+  - 控件库（按钮、文本框、进度条、复选框）
+  - 高级图形（渐变、阴影、圆角矩形）
+
+- ✅ **设备驱动**
+  - VGA文本模式驱动
+  - PS/2 键盘驱动
+  - PS/2 鼠标驱动
+  - PIT 可编程时钟
+  - RTC 实时时钟
+  - 串口驱动（COM1-COM4）
+
+- ✅ **Shell命令行**
+  - 50+ 内置命令
+  - 文件操作：ls, cat, cp, mv, rm, mkdir, cd, pwd, touch, find, tree, wc, hexdump
+  - 系统管理：ps, meminfo, dmesg, reboot, date, uptime, uname
+  - 用户权限：su, whoami
+  - 网络：ifconfig, ping, arp, dhcp, netstat
+  - 图形：gui, vbe
+  - 输入输出重定向（>、>>、<）
+  - 脚本执行（run命令）
+
+### Development Progress
+- [x] v0.1.0 - v0.2.0: Boot sector, real mode basics
+- [x] v0.3.0: 32-bit protected mode, C kernel, basic drivers
+- [x] v0.4.0: Memory isolation, large pages, page faults
+- [x] v0.5.0: User permissions, VFS, ramfs, disk driver, FAT16
+- [x] v0.6.0: IPC, device drivers (serial/RTC/mouse), FAT32, MBR, ELF loader, user lib
+- [x] v0.7.0: Network support (TCP/IP, ARP, DHCP, UDP, ICMP, NE2000 driver)
+- [x] v0.8.0: GUI (window manager, event system, graphics engine, taskbar, controls)
+- [x] v0.9.0: Advanced GUI enhancements, network stack improvements
+- [x] v1.0.0: Stable release with VBE/VESA graphics support 🎉
+
+---
+
+## [v0.9.0] - 2026-06-25
+### Overview
+v0.9.0 是 v1.0.0 之前的最后一个预览版本，主要增强了GUI系统和网络栈的稳定性，并新增了高级shell功能。
+
+### New Features
+
+#### 高级 GUI 增强
+- **高级图形效果**：
+  - 渐变填充（垂直/水平）
+  - 阴影效果
+  - 圆角矩形
+  - 抗锯齿像素
+- **控件库扩展**：
+  - 文本框控件（textbox_t）
+  - 进度条控件（progressbar_t）
+  - 复选框控件（checkbox_t）
+  - 标签控件（label）
+- **任务栏增强**：
+  - 开始菜单
+  - 系统托盘
+  - 实时时钟显示
+  - 窗口切换按钮
+
+#### Shell 增强
+- **高级文件命令**：
+  - `cp` - 复制文件
+  - `mv` - 移动/重命名文件
+  - `ln` - 创建链接
+  - `chmod` - 修改权限
+  - `find` - 查找文件
+  - `tree` - 目录树
+  - `wc` - 统计行数/字符数
+  - `hexdump` - 十六进制查看
+- **输入输出重定向**：
+  - `>` - 覆盖输出重定向
+  - `>>` - 追加输出重定向
+  - `<` - 输入重定向
+- **脚本执行**：
+  - `run` 命令执行脚本文件
+  - 支持顺序执行多条命令
+
+#### 网络栈完善
+- TCP协议状态机优化
+- Socket API 稳定性改进
+- DHCP租约管理增强
+- ARP缓存超时机制
+
+### Bug Fixes
+- 修复窗口拖动时的残影问题
+- 修复TCP连接状态转换错误
+- 修复shell命令解析的边界情况
+
+---
+
 ## [v0.8.0] - 2026-06-24
 ### Overview
 v0.8.0 is a major release that adds a complete Graphical User Interface (GUI) system with window management, event handling, and basic graphics rendering. Users can now launch a graphical desktop environment with draggable windows.
