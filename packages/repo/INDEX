@@ -1,9 +1,89 @@
 My Mini OS Package Repository Index
 Format: MPK v1
-Total Packages: 6
+Total Packages: 34
 Updated: 2026-06-25
 
 PACKAGE_LIST_BEGIN
+name=basename
+version=1.0.0
+size=2134
+filename=basename-1.0.0.mpk
+description=Strip directory and suffix from filenames
+deps=
+checksum=2755ae9c
+---
+name=cat
+version=1.0.0
+size=2067
+filename=cat-1.0.0.mpk
+description=Concatenate files and print on output
+deps=
+checksum=042d883a
+---
+name=cp
+version=1.0.0
+size=2023
+filename=cp-1.0.0.mpk
+description=Copy files and directories
+deps=
+checksum=d5ab692b
+---
+name=cut
+version=1.0.0
+size=2073
+filename=cut-1.0.0.mpk
+description=Remove sections from each line of files
+deps=
+checksum=e9f9c096
+---
+name=date
+version=1.0.0
+size=2066
+filename=date-1.0.0.mpk
+description=Print or set system date and time
+deps=
+checksum=70571e6c
+---
+name=dirname
+version=1.0.0
+size=2105
+filename=dirname-1.0.0.mpk
+description=Strip last component from file name
+deps=
+checksum=b40d84b6
+---
+name=echo
+version=1.0.0
+size=4335
+filename=echo-1.0.0.mpk
+description=Echo text to standard output
+deps=
+checksum=5fdedc49
+---
+name=false
+version=1.0.0
+size=2032
+filename=false-1.0.0.mpk
+description=Return false value
+deps=
+checksum=4f52ec89
+---
+name=grep
+version=1.0.0
+size=2057
+filename=grep-1.0.0.mpk
+description=Print lines matching a pattern
+deps=
+checksum=08ce61ba
+---
+name=head
+version=1.0.0
+size=2045
+filename=head-1.0.0.mpk
+description=Output first part of files
+deps=
+checksum=8b9e707d
+---
 name=hello
 version=1.0.0
 size=533
@@ -12,29 +92,85 @@ description=Hello World demo program
 deps=
 checksum=f2a9aa16
 ---
-name=cat
+name=hostname
 version=1.0.0
-size=346
-filename=cat-1.0.0.mpk
-description=File concatenation utility
+size=2095
+filename=hostname-1.0.0.mpk
+description=Print or set system hostname
 deps=
-checksum=55c4ab23
+checksum=7bcd2ff9
+---
+name=id
+version=1.0.0
+size=2041
+filename=id-1.0.0.mpk
+description=Print user and group information
+deps=
+checksum=b3fe9c01
 ---
 name=ls
 version=1.0.0
-size=348
+size=2014
 filename=ls-1.0.0.mpk
 description=List directory contents
 deps=
-checksum=8aca81d1
+checksum=c2647d8b
 ---
-name=vi
+name=mkdir
 version=1.0.0
-size=432
-filename=vi-1.0.0.mpk
-description=Vi text editor
+size=2032
+filename=mkdir-1.0.0.mpk
+description=Create directories
 deps=
-checksum=0daf929d
+checksum=456b88a5
+---
+name=mpk
+version=1.0.0
+size=13972
+filename=mpk-1.0.0.mpk
+description=MPK package management tool (user-space edition)
+deps=
+checksum=bde6b0af
+---
+name=mv
+version=1.0.0
+size=2005
+filename=mv-1.0.0.mpk
+description=Move or rename files
+deps=
+checksum=34979712
+---
+name=pwd
+version=1.0.0
+size=2049
+filename=pwd-1.0.0.mpk
+description=Print name of current directory
+deps=
+checksum=b67f45d1
+---
+name=rev
+version=1.0.0
+size=2037
+filename=rev-1.0.0.mpk
+description=Reverse lines characterwise
+deps=
+checksum=fbb747df
+---
+name=rm
+version=1.0.0
+size=2026
+filename=rm-1.0.0.mpk
+description=Remove files or directories
+deps=
+checksum=742f4543
+---
+name=rmdir
+version=1.0.0
+size=2050
+filename=rmdir-1.0.0.mpk
+description=Remove empty directories
+deps=
+checksum=cd6d5f44
 ---
 name=sh
 version=1.0.0
@@ -44,6 +180,22 @@ description=Command shell
 deps=
 checksum=3c2d0492
 ---
+name=sort
+version=1.0.0
+size=2039
+filename=sort-1.0.0.mpk
+description=Sort lines of text files
+deps=
+checksum=416b331e
+---
+name=tail
+version=1.0.0
+size=2042
+filename=tail-1.0.0.mpk
+description=Output last part of files
+deps=
+checksum=c929b266
+---
 name=tinycc
 version=1.0.0
 size=664
@@ -51,5 +203,77 @@ filename=tinycc-1.0.0.mpk
 description=Tiny C Compiler
 deps=
 checksum=4a372f3f
+---
+name=touch
+version=1.0.0
+size=2044
+filename touch-1.0.0.mpk
+description=Change file timestamps
+deps=
+checksum=b6e8db78
+---
+name=tr
+version=1.0.0
+size=2035
+filename=tr-1.0.0.mpk
+description=Translate or delete characters
+deps=
+checksum=7191865e
+---
+name=true
+version=1.0.0
+size=2018
+filename=true-1.0.0.mpk
+description=Return true value
+deps=
+checksum=9674fe0e
+---
+name=uname
+version=1.0.0
+size=2050
+filename=uname-1.0.0.mpk
+description=Print system information
+deps=
+checksum=f63b228a
+---
+name=uptime
+version=1.0.0
+size=2100
+filename=uptime-1.0.0.mpk
+description=Tell how long system has been running
+deps=
+checksum=64206101
+---
+name=vi
+version=1.0.0
+size=432
+filename=vi-1.0.0.mpk
+description=Vi text editor
+deps=
+checksum=0daf929d
+---
+name=wc
+version=1.0.0
+size=2044
+filename=wc-1.0.0.mpk
+description=Print line, word, and byte counts
+deps=
+checksum=a035e299
+---
+name=whoami
+version=1.0.0
+size=2058
+filename=whoami-1.0.0.mpk
+description=Print current user name
+deps=
+checksum=12e2eee0
+---
+name=yes
+version=1.0.0
+size=2034
+filename=yes-1.0.0.mpk
+description=Output a string repeatedly
+deps=
+checksum=7b372bc5
 ---
 PACKAGE_LIST_END
