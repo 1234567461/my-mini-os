@@ -1,33 +1,3 @@
-# My Mini OS 镜像哈希校验文件
-# 使用 SHA-512/256 算法 (防碰撞)
-# 验证下载文件完整性
-
-## 使用方法
-```bash
-# Linux/macOS
-sha512sum -c my-mini-os-v1.1.0-checksums.txt
-
-# Windows (PowerShell)
-Get-FileHash -Algorithm SHA512 my-mini-os-v1.1.0.img
-```
-
-## 镜像文件哈希值
-
-### v1.1.0 (最新版本)
-my-mini-os-v1.1.0.img SHA512-256:96a908877e7e32d7a7004333c88f277d5d10a40221e4e1471a4e5c29fb5ef3ef20d7b6c892f02b42d6980693206b7703cd0ed3456a345c1b0c5cd72eb843bb39
-
-### v1.0.0 正式版
-my-mini-os-v1.0.0.img SHA512-256:1cf4626b3c91e68ce03fecba650976826db95bc6f6ab7cda6e6d29662b9b0c5ff0447e1647eaf2c21a67a37ebee2e03357a84d996509a917f47b5909f7c4c1d1
-
-### v1.0.0 无障碍版
-my-mini-os-v1.0.0-a11y.img SHA512-256:c668f6601a0e1e8ea5490412f0d38a50397bbbc433afecf936e46d0b175e125e721d8401f475dd5860b97c68b414845fbb9e46c9ce6fcf28cb42835dfa21c7c2
-
-### v1.0.0 RC2
-my-mini-os-v1.0.0-rc2.img SHA512-256:f2326babf7e70047dbbcc2f4d28dfb307e3656ce873222ed1866dbfefa2922c5bdf0f8b0b9d5776d9167f79ab0e1156b73fbc955782553a7752653da7d2eb645
-
-### v1.0.0 RC1
-my-mini-os-v1.0.0-rc1.img SHA512-256:03f219d5adcad6537ccfc5aea87c591ef7a582d229f09ed36bceecf5acca0a9c5d758e8506c3caed759b7224e72ce72cc999513a90ca8df96c60e32022717bf0
-
----
-生成时间: 2026-06-25
-校验算法: SHA-512/256 (FIPS 180-4)
+2586071a6f545832282a702367eb4678a18d078ceda7dcf3eda7c75313ad6d38f9acb2252d2c7360f8841671a052f0c1fc86303df102e99099137ee3535bdf54  my-mini-os-v1.1.0-desktop.img
+6749f57469ef0be4a4668c36052f581c16042ea298321833213a5e0e9bca1b66d4f9bfa170b5be8432ef73415859e0827bfec8a9b0327c2a5877deb6f2360585  my-mini-os-v1.1.0-setup.img
+1f427e3a83ffcdb2cd28bb293501682c62644105a41fa25bedc063841bcc450304ff71543c9870d3bc2c80c121404f09dde8b600e29fc84f5168c79c031a3f4d  my-mini-os-v1.1.0-terminal.img

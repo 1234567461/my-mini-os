@@ -62,9 +62,17 @@ v1.1.0 是 v1.0.0-a11y 之后的第一个功能更新版本，增加了包管理
 
 | 版本 | 文件名 | SHA-512/256 哈希 |
 |------|--------|------------------|
+| v1.1.0-desktop | my-mini-os-v1.1.0-desktop.img | 2586071a6f5458... |
+| v1.1.0-setup | my-mini-os-v1.1.0-setup.img | 6749f57469ef0b... |
+| v1.1.0-terminal | my-mini-os-v1.1.0-terminal.img | 1f427e3a83ffcd... |
 | v1.1.0 | my-mini-os-v1.1.0.img | 96a908877e7e32d7... |
 | v1.0.0 | my-mini-os-v1.0.0.img | 1cf4626b3c91e68c... |
 | v1.0.0-a11y | my-mini-os-v1.0.0-a11y.img | c668f6601a0e1e8e... |
+
+#### 版本说明
+- **v1.1.0-terminal**: 终端版本 - 启动后直接进入命令行Shell界面
+- **v1.1.0-setup**: 安装向导版本 - 启动后直接进入Setup TUI安装向导
+- **v1.1.0-desktop**: 桌面版本 - 启动后直接进入GUI图形桌面环境
 
 ### Development Progress
 - [x] v0.1.0 - v0.2.0: Boot sector, real mode basics

@@ -36,6 +36,19 @@
 #include "vbe.h"
 #include "accessibility.h"
 #include "pkg.h"
+#include "setup.h"
+#include "gui.h"
+
+/* ==========================================
+ * 启动模式配置
+ * ========================================== */
+#ifndef BOOT_MODE
+#define BOOT_MODE_BOOT_NORMAL   0  /* 正常启动：测试进程 + Shell */
+#define BOOT_MODE_TERMINAL      1  /* 终端版：直接进入Shell */
+#define BOOT_MODE_SETUP         2  /* 安装向导弹：直接进入Setup TUI */
+#define BOOT_MODE_DESKTOP       3  /* 桌面版：直接进入GUI */
+#define BOOT_MODE               BOOT_MODE_BOOT_NORMAL
+#endif
 
 /* ==========================================
  * 外部函数声明
@@ -316,6 +329,7 @@ void kernel_main(void)
     klog_log("boot", "All systems initialized successfully");
     klog_log("boot", "Starting user shell...");
 
+#if BOOT_MODE == BOOT_MODE_BOOT_NORMAL
     /* ==========================================
      * 创建测试进程
      * ========================================== */
@@ -340,6 +354,32 @@ void kernel_main(void)
 
     /* 启动Shell作为主进程 */
     shell_start();
+#elif BOOT_MODE == BOOT_MODE_TERMINAL
+    /* 终端版：直接启动Shell */
+    vga_puts("\n");
+    shell_start();
+#elif BOOT_MODE == BOOT_MODE_SETUP
+    /* 安装向导弹：直接启动Setup TUI */
+    vga_puts("\n");
+    vga_set_color(VGA_COLOR_LIGHT_CYAN, VGA_COLOR_BLACK);
+    vga_puts("========================================\n");
+    vga_puts("  My Mini OS Setup Wizard\n");
+    vga_puts("========================================\n\n");
+    vga_set_color(VGA_COLOR_WHITE, VGA_COLOR_BLACK);
+    setup_wizard_tui();
+    vga_puts("\nSetup complete. Starting shell...\n");
+    shell_start();
+#elif BOOT_MODE == BOOT_MODE_DESKTOP
+    /* 桌面版：直接启动GUI */
+    vga_puts("\n");
+    vga_set_color(VGA_COLOR_LIGHT_MAGENTA, VGA_COLOR_BLACK);
+    vga_puts("Starting GUI desktop...\n");
+    vga_set_color(VGA_COLOR_WHITE, VGA_COLOR_BLACK);
+    gui_init();
+    gui_main_loop();
+    vga_puts("\nGUI exited. Starting shell...\n");
+    shell_start();
+#endif
 
     /* 不应该到这里 */
     klog_log("boot", "WARNING: Shell returned, halting");

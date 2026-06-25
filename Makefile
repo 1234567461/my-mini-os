@@ -14,6 +14,14 @@ DD      = dd
 GCC_FLAGS = -m32 -ffreestanding -fno-pie -fno-stack-protector -c -Isrc/kernel/include
 LD_FLAGS  = -m elf_i386 -T linker.ld
 
+# 启动模式（可通过命令行覆盖：make BOOT_MODE=2 build）
+BOOT_MODE ?= 0
+GCC_FLAGS += -DBOOT_MODE=$(BOOT_MODE)
+GCC_FLAGS += -DBOOT_MODE_BOOT_NORMAL=0
+GCC_FLAGS += -DBOOT_MODE_TERMINAL=1
+GCC_FLAGS += -DBOOT_MODE_SETUP=2
+GCC_FLAGS += -DBOOT_MODE_DESKTOP=3
+
 # 目录
 SRC_DIR    = src
 BOOT_DIR   = $(SRC_DIR)/boot
@@ -37,45 +45,48 @@ KERNEL_OBJS     = $(patsubst $(KERNEL_DIR)/%.asm, $(BUILD_DIR)/kernel_asm_%.o, $
 # 默认目标
 all: build
 
-# 创建build目录
-$(BUILD_DIR):
-	mkdir -p $(BUILD_DIR)
-
 # ====== 引导扇区（第一阶段） ======
-$(BOOT_BIN): $(BOOT_DIR)/bootsect.asm | $(BUILD_DIR)
+$(BOOT_BIN): $(BOOT_DIR)/bootsect.asm
+	@mkdir -p $(BUILD_DIR)
 	$(NASM) -f bin $< -o $@
 	@echo "✅ 引导扇区编译完成: $@"
 	@echo "   文件大小: $$(wc -c < $@) 字节"
 
 # ====== 加载器（第二阶段） ======
-$(LOADER_BIN): $(BOOT_DIR)/loader.asm | $(BUILD_DIR)
+$(LOADER_BIN): $(BOOT_DIR)/loader.asm
+	@mkdir -p $(BUILD_DIR)
 	$(NASM) -f bin $< -o $@
 	@echo "✅ 第二阶段加载器编译完成: $@"
 	@echo "   文件大小: $$(wc -c < $@) 字节"
 
 # ====== 内核：汇编文件编译 ======
-$(BUILD_DIR)/kernel_asm_%.o: $(KERNEL_DIR)/%.asm | $(BUILD_DIR)
+$(BUILD_DIR)/kernel_asm_%.o: $(KERNEL_DIR)/%.asm
+	@mkdir -p $(BUILD_DIR)
 	$(NASM) -f elf32 $< -o $@
 	@echo "✅ 内核汇编编译: $<"
 
 # ====== 内核：C文件编译 ======
-$(BUILD_DIR)/kernel_%.o: $(KERNEL_DIR)/%.c | $(BUILD_DIR)
+$(BUILD_DIR)/kernel_%.o: $(KERNEL_DIR)/%.c
+	@mkdir -p $(BUILD_DIR)
 	$(GCC) $(GCC_FLAGS) $< -o $@
 	@echo "✅ 内核C编译: $<"
 
 # ====== 内核：链接 ======
 $(KERNEL_ELF): $(KERNEL_OBJS) linker.ld
+	@mkdir -p $(BUILD_DIR)
 	$(LD) $(LD_FLAGS) $(KERNEL_OBJS) -o $@
 	@echo "✅ 内核链接完成: $@"
 
 # ====== 内核：转换为纯二进制 ======
 $(KERNEL_BIN): $(KERNEL_ELF)
+	@mkdir -p $(BUILD_DIR)
 	$(OBJCOPY) -O binary $< $@
 	@echo "✅ 内核二进制生成: $@"
 	@echo "   文件大小: $$(wc -c < $@) 字节"
 
 # ====== 构建完整OS镜像 ======
 $(OS_IMG): $(BOOT_BIN) $(LOADER_BIN) $(KERNEL_BIN)
+	@mkdir -p $(BUILD_DIR)
 	@echo ""
 	@echo "🔨 构建OS镜像..."
 
@@ -149,5 +160,49 @@ help:
 	@echo "  hexdump   - 查看二进制内容"
 	@echo "  clean     - 清理构建文件"
 	@echo "  help      - 显示帮助信息"
+	@echo ""
+	@echo "版本构建目标:"
+	@echo "  build-terminal  - 构建终端版本"
+	@echo "  build-setup     - 构建安装向导弹"
+	@echo "  build-desktop   - 构建GUI桌面版本"
+	@echo "  build-all       - 构建所有版本到img目录"
+	@echo ""
+	@echo "启动模式 (BOOT_MODE):"
+	@echo "  0 - 正常模式（测试进程 + Shell）"
+	@echo "  1 - 终端模式（直接进入Shell）"
+	@echo "  2 - 安装向导模式（Setup TUI）"
+	@echo "  3 - 桌面模式（GUI）"
 
 .PHONY: all build run debug hexdump clean help
+
+# ====== 版本构建目标 ======
+VERSION = v1.1.0
+IMG_DIR = img
+
+build-terminal:
+	@echo "🔨 构建终端版本..."
+	$(MAKE) clean
+	$(MAKE) build BOOT_MODE=1
+	cp $(OS_IMG) $(IMG_DIR)/my-mini-os-$(VERSION)-terminal.img
+	@echo "✅ 终端版本构建完成: $(IMG_DIR)/my-mini-os-$(VERSION)-terminal.img"
+
+build-setup:
+	@echo "🔨 构建安装向导弹..."
+	$(MAKE) clean
+	$(MAKE) build BOOT_MODE=2
+	cp $(OS_IMG) $(IMG_DIR)/my-mini-os-$(VERSION)-setup.img
+	@echo "✅ 安装向导弹构建完成: $(IMG_DIR)/my-mini-os-$(VERSION)-setup.img"
+
+build-desktop:
+	@echo "🔨 构建GUI桌面版本..."
+	$(MAKE) clean
+	$(MAKE) build BOOT_MODE=3
+	cp $(OS_IMG) $(IMG_DIR)/my-mini-os-$(VERSION)-desktop.img
+	@echo "✅ GUI桌面版本构建完成: $(IMG_DIR)/my-mini-os-$(VERSION)-desktop.img"
+
+build-all: build-terminal build-setup build-desktop
+	@echo ""
+	@echo "🎉 所有版本构建完成!"
+	@ls -lh $(IMG_DIR)/my-mini-os-$(VERSION)-*.img
+
+.PHONY: build-terminal build-setup build-desktop build-all
