@@ -27,6 +27,7 @@
 #include "setup.h"
 #include "hash.h"
 #include "pkg.h"
+#include "mpk.h"
 
 /* 命令缓冲区大小 */
 #define CMD_BUF_SIZE 128
@@ -93,6 +94,7 @@ static const char *help_text =
   "  hash       - Calculate file hash (md5/sha256/sha512256)\n"
   "  verify     - Verify file hash\n"
   "  pkg        - Package manager (pkg help for details)\n"
+  "  mpk        - MPK package tool (mpk help for details)\n"
   "  update     - Check and apply system updates\n";
 
 /* ==========================================
@@ -1839,6 +1841,112 @@ static void execute_command(const char *cmd_orig)
         vga_puts("  update check   - Check for updates\n");
         vga_puts("  update upgrade  - Upgrade to latest version\n");
         vga_puts("  update repo     - Manage update repositories\n");
+    } else if (strcmp(cmd_name, "mpk") == 0) {
+        /* MPK包工具命令 */
+        if (strcmp(args, "help") == 0 || *args == '\0') {
+            vga_set_color(VGA_COLOR_LIGHT_CYAN, VGA_COLOR_BLACK);
+            vga_puts("=== MPK Package Tool ===\n");
+            vga_set_color(VGA_COLOR_WHITE, VGA_COLOR_BLACK);
+            vga_puts("  mpk info <file.mpk>    - Show package info\n");
+            vga_puts("  mpk list <file.mpk>    - List package contents\n");
+            vga_puts("  mpk verify <file.mpk>  - Verify package checksum\n");
+            vga_puts("  mpk extract <file.mpk> - Extract package\n");
+        } else if (strncmp(args, "info ", 5) == 0) {
+            const char *path = args + 5;
+            vfs_file_t *f = vfs_open(path, VFS_O_RDONLY);
+            if (!f) {
+                vga_printf("Cannot open: %s\n", path);
+            } else {
+                uint32_t fsize = f->size;
+                uint8_t *buf = (uint8_t *)kmalloc(fsize);
+                if (buf) {
+                    vfs_read(f, buf, fsize);
+                    vga_printf("Package: %s\n", path);
+                    if (mpk_validate(buf, fsize) == 0) {
+                        mpk_header_t hdr;
+                        mpk_read_header(buf, fsize, &hdr);
+                        mpk_metadata_t meta;
+                        mpk_read_metadata(buf, fsize, &meta);
+                        vga_printf("Name: %s\n", meta.name);
+                        vga_printf("Version: %s\n", meta.version);
+                        vga_printf("Description: %s\n", meta.description);
+                        vga_printf("Files: %d\n", hdr.file_count);
+                        vga_printf("Size: %d / %d bytes\n", hdr.data_size, hdr.data_size_orig);
+                    } else {
+                        vga_printf("Invalid or corrupted package\n");
+                    }
+                    kfree(buf);
+                }
+                vfs_close(f);
+            }
+        } else if (strncmp(args, "list ", 5) == 0) {
+            const char *path = args + 5;
+            vfs_file_t *f = vfs_open(path, VFS_O_RDONLY);
+            if (!f) {
+                vga_printf("Cannot open: %s\n", path);
+            } else {
+                uint32_t fsize = f->size;
+                uint8_t *buf = (uint8_t *)kmalloc(fsize);
+                if (buf) {
+                    vfs_read(f, buf, fsize);
+                    if (mpk_validate(buf, fsize) == 0) {
+                        int count = mpk_get_file_count(buf, fsize);
+                        vga_printf("Files in %s (%d total):\n", path, count);
+                        for (int i = 0; i < count; i++) {
+                            mpk_file_entry_t entry;
+                            if (mpk_get_file_entry(buf, fsize, i, &entry) == 0) {
+                                vga_printf("  %-40s %10d bytes\n", entry.name, entry.size_orig);
+                            }
+                        }
+                    } else {
+                        vga_printf("Invalid package\n");
+                    }
+                    kfree(buf);
+                }
+                vfs_close(f);
+            }
+        } else if (strncmp(args, "verify ", 7) == 0) {
+            const char *path = args + 7;
+            vfs_file_t *f = vfs_open(path, VFS_O_RDONLY);
+            if (!f) {
+                vga_printf("Cannot open: %s\n", path);
+            } else {
+                uint32_t fsize = f->size;
+                uint8_t *buf = (uint8_t *)kmalloc(fsize);
+                if (buf) {
+                    vfs_read(f, buf, fsize);
+                    if (mpk_validate(buf, fsize) == 0) {
+                        vga_set_color(VGA_COLOR_LIGHT_GREEN, VGA_COLOR_BLACK);
+                        vga_printf("Package '%s' is valid ✓\n", path);
+                        vga_set_color(VGA_COLOR_WHITE, VGA_COLOR_BLACK);
+                    } else {
+                        vga_set_color(VGA_COLOR_LIGHT_RED, VGA_COLOR_BLACK);
+                        vga_printf("Package '%s' is invalid or corrupted ✗\n", path);
+                        vga_set_color(VGA_COLOR_WHITE, VGA_COLOR_BLACK);
+                    }
+                    kfree(buf);
+                }
+                vfs_close(f);
+            }
+        } else if (strncmp(args, "extract ", 8) == 0) {
+            const char *path = args + 8;
+            vfs_file_t *f = vfs_open(path, VFS_O_RDONLY);
+            if (!f) {
+                vga_printf("Cannot open: %s\n", path);
+            } else {
+                uint32_t fsize = f->size;
+                uint8_t *buf = (uint8_t *)kmalloc(fsize);
+                if (buf) {
+                    vfs_read(f, buf, fsize);
+                    mpk_extract_all(buf, fsize, "/");
+                    kfree(buf);
+                }
+                vfs_close(f);
+            }
+        } else {
+            vga_puts("Usage: mpk <command> [args]\n");
+            vga_puts("Type 'mpk help' for usage.\n");
+        }
     } else {
         vga_set_color(VGA_COLOR_LIGHT_RED, VGA_COLOR_BLACK);
         vga_printf("Command not found: %s\n", cmd_name);

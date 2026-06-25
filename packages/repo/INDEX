@@ -1,0 +1,55 @@
+My Mini OS Package Repository Index
+Format: MPK v1
+Total Packages: 6
+Updated: 2026-06-25
+
+PACKAGE_LIST_BEGIN
+name=hello
+version=1.0.0
+size=533
+filename=hello-1.0.0.mpk
+description=Hello World demo program
+deps=
+checksum=f2a9aa16
+---
+name=cat
+version=1.0.0
+size=346
+filename=cat-1.0.0.mpk
+description=File concatenation utility
+deps=
+checksum=55c4ab23
+---
+name=ls
+version=1.0.0
+size=348
+filename=ls-1.0.0.mpk
+description=List directory contents
+deps=
+checksum=8aca81d1
+---
+name=vi
+version=1.0.0
+size=432
+filename=vi-1.0.0.mpk
+description=Vi text editor
+deps=
+checksum=0daf929d
+---
+name=sh
+version=1.0.0
+size=325
+filename=sh-1.0.0.mpk
+description=Command shell
+deps=
+checksum=3c2d0492
+---
+name=tinycc
+version=1.0.0
+size=664
+filename=tinycc-1.0.0.mpk
+description=Tiny C Compiler
+deps=
+checksum=4a372f3f
+---
+PACKAGE_LIST_END

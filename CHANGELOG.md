@@ -78,6 +78,7 @@ v1.1.0 是 v1.0.0-a11y 之后的第一个功能更新版本，增加了包管理
 - [x] v1.0.0: Stable release with VBE/VESA graphics support 🎉
 - [x] v1.0.0-a11y: Accessibility support (for visual/hearing/speech impairments) ♿
 - [x] v1.1.0: Package manager, setup wizard, SHA-512/256 hash verification 📦🔧🔒
+- [x] v1.1.0-mpk: 自研MPK包格式 + mpk-tool工具 + 示例软件包仓库 📦
 
 ---
 
