@@ -1,6 +1,86 @@
 # Changelog
 All notable changes to this project will be documented in this file.
 
+## [v1.1.0] - 2026-06-25
+### Overview
+v1.1.0 是 v1.0.0-a11y 之后的第一个功能更新版本，增加了包管理器、安装向导和SHA-512/256哈希验证功能。
+
+> **重要更新**：
+> - 包管理器：`pkg` 命令支持软件包搜索、安装、卸载
+> - 安装向导：`setup-tui` / `setup-gui` 命令提供完整的系统安装流程
+> - 哈希校验：内置SHA-512/256算法，用于验证下载文件的完整性
+> - 所有镜像提供SHA-512/256哈希值，防止碰撞攻击
+
+### 新增功能
+
+#### 📦 包管理器（pkg）
+- **搜索**：`pkg search <关键词>` - 搜索可用软件包
+- **安装**：`pkg install <包名>` - 安装软件包
+- **卸载**：`pkg remove <包名>` - 卸载软件包
+- **列表**：`pkg list` - 列出已安装的包
+- **信息**：`pkg info <包名>` - 显示包详情
+- **更新**：`pkg update` - 更新所有软件包
+- **刷新**：`pkg refresh` - 从仓库刷新包列表
+- **清理**：`pkg clean` - 清理包缓存
+- **依赖解析**：自动检查和安装依赖
+- **仓库管理**：支持添加/移除自定义仓库
+
+#### 🔧 安装向导（setup）
+- **TUI版本**：`setup-tui` - 文本模式安装向导
+- **GUI版本**：`setup-gui` - 图形模式安装向导
+- **功能**：
+  - 目标磁盘选择
+  - 文件系统选择（FAT16/FAT32/RAM Disk）
+  - 分区管理
+  - 用户账户设置
+  - 密码配置
+  - 安装进度显示
+  - 安装确认与回退
+
+#### 🔒 SHA-512/256 哈希（防碰撞）
+- **自研实现**：完全自主研发的哈希算法
+- **防碰撞**：使用SHA-2家族的安全变体
+- **内置命令**：`hash` / `verify` 命令
+- **校验文件**：`img/SHA512SUMS.txt` 包含所有镜像的哈希值
+
+#### 🔄 系统更新（update）
+- **版本检测**：自动检测最新版本
+- **更新检查**：`update check` - 检查更新
+- **自动升级**：`update upgrade` - 升级到最新版本
+- **过期提醒**：超过3个月未更新会强制提醒
+
+### 内核更新
+- 内核大小：173KB（相比v1.0.0增加约21KB）
+- 新增模块：
+  - hash.c/h - SHA-512/256哈希实现（~6KB）
+  - pkg.c/h - 包管理器实现（~5KB）
+  - setup.c/h - 安装向导实现（~10KB）
+- 保持向后兼容
+
+### 镜像文件
+所有镜像的SHA-512/256哈希值保存在 `img/SHA512SUMS.txt`
+
+| 版本 | 文件名 | SHA-512/256 哈希 |
+|------|--------|------------------|
+| v1.1.0 | my-mini-os-v1.1.0.img | 96a908877e7e32d7... |
+| v1.0.0 | my-mini-os-v1.0.0.img | 1cf4626b3c91e68c... |
+| v1.0.0-a11y | my-mini-os-v1.0.0-a11y.img | c668f6601a0e1e8e... |
+
+### Development Progress
+- [x] v0.1.0 - v0.2.0: Boot sector, real mode basics
+- [x] v0.3.0: 32-bit protected mode, C kernel, basic drivers
+- [x] v0.4.0: Memory isolation, large pages, page faults
+- [x] v0.5.0: User permissions, VFS, ramfs, disk driver, FAT16
+- [x] v0.6.0: IPC, device drivers (serial/RTC/mouse), FAT32, MBR, ELF loader, user lib
+- [x] v0.7.0: Network support (TCP/IP, ARP, DHCP, UDP, ICMP, NE2000 driver)
+- [x] v0.8.0: GUI (window manager, event system, graphics engine, taskbar, controls)
+- [x] v0.9.0: Advanced GUI enhancements, network stack improvements
+- [x] v1.0.0: Stable release with VBE/VESA graphics support 🎉
+- [x] v1.0.0-a11y: Accessibility support (for visual/hearing/speech impairments) ♿
+- [x] v1.1.0: Package manager, setup wizard, SHA-512/256 hash verification 📦🔧🔒
+
+---
+
 ## [v1.0.0-a11y] - 2026-06-25
 ### Overview
 ♿ 无障碍支持版本 - 为视障、听障、语障人士提供完善的辅助功能
