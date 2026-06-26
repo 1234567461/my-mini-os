@@ -28,6 +28,7 @@
 #include "hash.h"
 #include "pkg.h"
 #include "mpk.h"
+#include "version.h"
 
 /* 命令缓冲区大小 */
 #define CMD_BUF_SIZE 128
@@ -813,7 +814,7 @@ static void cmd_gui(void)
 }
 
 /* 外部函数声明 */
-extern int sys_execve(const char *filename, const char *argv[]);
+extern int sys_execve(const char *filename, char *args);
 extern int sys_waitpid(int pid, int *status, int options);
 
 /* ==========================================
@@ -1828,19 +1829,82 @@ static void execute_command(const char *cmd_orig)
     } else if (strcmp(cmd_name, "update") == 0) {
         /* 系统更新命令 */
         vga_set_color(VGA_COLOR_LIGHT_CYAN, VGA_COLOR_BLACK);
-        vga_puts("=== System Update ===\n");
+        vga_puts("=== My Mini OS Update System ===\n");
         vga_set_color(VGA_COLOR_WHITE, VGA_COLOR_BLACK);
 
-        vga_puts("Checking for updates...\n");
-        vga_printf("Current version: v1.1.0\n");
-        vga_printf("Latest version: v1.1.0\n");
-        vga_set_color(VGA_COLOR_LIGHT_GREEN, VGA_COLOR_BLACK);
-        vga_puts("Your system is up to date!\n");
-        vga_set_color(VGA_COLOR_WHITE, VGA_COLOR_BLACK);
-        vga_puts("\nFor more options:\n");
-        vga_puts("  update check   - Check for updates\n");
-        vga_puts("  update upgrade  - Upgrade to latest version\n");
-        vga_puts("  update repo     - Manage update repositories\n");
+        if (strcmp(args, "check") == 0 || *args == '\0') {
+            /* 检查更新 */
+            vga_puts("Checking for updates...\n");
+            vga_puts("\n");
+            version_print_update_status();
+
+            /* 检查是否超过3个月 */
+            if (version_is_stale()) {
+                vga_set_color(VGA_COLOR_LIGHT_RED, VGA_COLOR_BLACK);
+                vga_puts("\n!!! CRITICAL: Your system has not been updated in over 3 months! !!!\n");
+                vga_puts("    This is a security risk. Please update as soon as possible.\n");
+                vga_set_color(VGA_COLOR_WHITE, VGA_COLOR_BLACK);
+                vga_puts("\nTo upgrade, run: update upgrade\n");
+            }
+        }
+        else if (strcmp(args, "upgrade") == 0) {
+            /* 升级到最新版本 */
+            vga_set_color(VGA_COLOR_LIGHT_BROWN, VGA_COLOR_BLACK);
+            vga_puts("\n*** SYSTEM UPGRADE ***\n\n");
+            vga_set_color(VGA_COLOR_WHITE, VGA_COLOR_BLACK);
+
+            version_info_t *current = version_get_current();
+            vga_printf("Current version: %s\n", current->version);
+            vga_printf("Build date: %s\n", current->build_date);
+            vga_puts("\n");
+
+            /* 检查更新 */
+            char latest[VERSION_MAX_LEN];
+            version_status_t status = version_check_latest(latest, sizeof(latest));
+
+            if (status == VERSION_UPDATE_AVAILABLE) {
+                vga_set_color(VGA_COLOR_LIGHT_GREEN, VGA_COLOR_BLACK);
+                vga_printf("New version available: %s\n", latest);
+                vga_set_color(VGA_COLOR_WHITE, VGA_COLOR_BLACK);
+                vga_puts("\n");
+                vga_puts("To upgrade, please download the latest image from:\n");
+                vga_puts("  https://github.com/1234567461/my-mini-os/releases\n");
+                vga_puts("\nOr use the setup wizard to reinstall.\n");
+            }
+            else if (status == VERSION_OK) {
+                vga_set_color(VGA_COLOR_LIGHT_GREEN, VGA_COLOR_BLACK);
+                vga_puts("✓ Your system is already up to date!\n");
+                vga_set_color(VGA_COLOR_WHITE, VGA_COLOR_BLACK);
+            }
+            else {
+                vga_set_color(VGA_COLOR_RED, VGA_COLOR_BLACK);
+                vga_puts("✗ Failed to check for updates.\n");
+                vga_set_color(VGA_COLOR_WHITE, VGA_COLOR_BLACK);
+            }
+        }
+        else if (strcmp(args, "version") == 0) {
+            /* 显示版本信息 */
+            version_print_info();
+        }
+        else if (strcmp(args, "help") == 0 || strcmp(args, "--help") == 0) {
+            /* 显示帮助 */
+            vga_puts("Update Command Usage:\n");
+            vga_puts("  update check    - Check for available updates\n");
+            vga_puts("  update upgrade  - Upgrade to latest version\n");
+            vga_puts("  update version  - Show version information\n");
+            vga_puts("  update help     - Show this help message\n");
+            vga_puts("\n");
+            vga_puts("Features:\n");
+            vga_puts("  - Automatic update checking\n");
+            vga_puts("  - 3-month stale warning\n");
+            vga_puts("  - Version comparison\n");
+        }
+        else {
+            vga_set_color(VGA_COLOR_LIGHT_BROWN, VGA_COLOR_BLACK);
+            vga_printf("Unknown update option: %s\n", args);
+            vga_set_color(VGA_COLOR_WHITE, VGA_COLOR_BLACK);
+            vga_puts("Type 'update help' for usage.\n");
+        }
     } else if (strcmp(cmd_name, "mpk") == 0) {
         /* MPK包工具命令 */
         if (strcmp(args, "help") == 0 || *args == '\0') {
@@ -1947,6 +2011,168 @@ static void execute_command(const char *cmd_orig)
             vga_puts("Usage: mpk <command> [args]\n");
             vga_puts("Type 'mpk help' for usage.\n");
         }
+    } else if (strcmp(cmd_name, "hash") == 0) {
+        /* hash命令 - 计算文件哈希值 */
+        vga_set_color(VGA_COLOR_LIGHT_CYAN, VGA_COLOR_BLACK);
+        vga_puts("=== My Mini OS Hash Tool ===\n");
+        vga_set_color(VGA_COLOR_WHITE, VGA_COLOR_BLACK);
+
+        const char *path = args;
+        if (*path == '\0') {
+            vga_puts("Usage: hash <file> [algorithm]\n");
+            vga_puts("Algorithms: sha512-256 (default), sha256, md5\n");
+            vga_puts("Example: hash /path/to/file\n");
+            return;
+        }
+
+        /* 解析算法 */
+        const char *algo = "sha512-256";
+        char *space = strchr(path, ' ');
+        if (space) {
+            *space = '\0';
+            algo = space + 1;
+        }
+
+        /* 打开文件 */
+        vfs_file_t *f = vfs_open(path, VFS_O_RDONLY);
+        if (!f) {
+            vga_set_color(VGA_COLOR_RED, VGA_COLOR_BLACK);
+            vga_printf("Cannot open file: %s\n", path);
+            vga_set_color(VGA_COLOR_WHITE, VGA_COLOR_BLACK);
+            return;
+        }
+
+        vga_printf("Computing %s hash for: %s\n", algo, path);
+
+        /* 分配缓冲区 */
+        uint32_t fsize = f->size;
+        uint8_t *buf = (uint8_t *)kmalloc(fsize);
+        if (!buf) {
+            vga_set_color(VGA_COLOR_RED, VGA_COLOR_BLACK);
+            vga_puts("Out of memory!\n");
+            vga_set_color(VGA_COLOR_WHITE, VGA_COLOR_BLACK);
+            vfs_close(f);
+            return;
+        }
+
+        /* 读取文件 */
+        vfs_read(f, buf, fsize);
+        vfs_close(f);
+
+        /* 计算哈希 */
+        char hex[129];
+        uint8_t digest[64];
+
+        if (strcmp(algo, "sha512-256") == 0 || strcmp(algo, "sha-512/256") == 0) {
+            sha512_256_data(buf, fsize, digest);
+            hash_to_string(digest, 32, hex);
+            vga_puts("\nSHA-512/256:");
+        } else if (strcmp(algo, "sha256") == 0) {
+            sha256_data(buf, fsize, digest);
+            hash_to_string(digest, 32, hex);
+            vga_puts("\nSHA-256:");
+        } else if (strcmp(algo, "md5") == 0) {
+            md5_data(buf, fsize, digest);
+            hash_to_string(digest, 16, hex);
+            vga_puts("\nMD5:");
+        } else {
+            vga_set_color(VGA_COLOR_LIGHT_BROWN, VGA_COLOR_BLACK);
+            vga_printf("Unknown algorithm: %s\n", algo);
+            vga_set_color(VGA_COLOR_WHITE, VGA_COLOR_BLACK);
+            kfree(buf);
+            return;
+        }
+
+        /* 显示哈希值 */
+        vga_set_color(VGA_COLOR_LIGHT_GREEN, VGA_COLOR_BLACK);
+        vga_printf(" %s\n", hex);
+        vga_set_color(VGA_COLOR_WHITE, VGA_COLOR_BLACK);
+
+        vga_printf("File size: %d bytes\n", fsize);
+        vga_puts("\nSave this hash to verify file integrity later.\n");
+
+        kfree(buf);
+    } else if (strcmp(cmd_name, "verify") == 0) {
+        /* verify命令 - 验证文件哈希 */
+        vga_set_color(VGA_COLOR_LIGHT_CYAN, VGA_COLOR_BLACK);
+        vga_puts("=== My Mini OS File Verification ===\n");
+        vga_set_color(VGA_COLOR_WHITE, VGA_COLOR_BLACK);
+
+        /* 解析参数: verify <file> <expected_hash> [algorithm] */
+        char path[128], expected[129];
+
+        /* 手动解析参数 */
+        const char *p = args;
+        int i = 0;
+        while (*p && *p == ' ') p++;  /* 跳过前导空格 */
+        while (*p && *p != ' ' && i < 127) path[i++] = *p++;
+        path[i] = '\0';
+
+        while (*p && *p == ' ') p++;  /* 跳过空格 */
+        i = 0;
+        while (*p && *p != ' ' && i < 128) expected[i++] = *p++;
+        expected[i] = '\0';
+
+        if (path[0] == '\0' || expected[0] == '\0') {
+            vga_puts("Usage: verify <file> <expected_hash>\n");
+            vga_puts("Example: verify myos.img abc123...\n");
+            vga_puts("Note: Uses SHA-512/256 by default\n");
+            return;
+        }
+
+        /* 打开文件 */
+        vfs_file_t *f = vfs_open(path, VFS_O_RDONLY);
+        if (!f) {
+            vga_set_color(VGA_COLOR_RED, VGA_COLOR_BLACK);
+            vga_printf("Cannot open file: %s\n", path);
+            vga_set_color(VGA_COLOR_WHITE, VGA_COLOR_BLACK);
+            return;
+        }
+
+        vga_printf("Verifying: %s\n", path);
+        vga_printf("Expected:  %s\n", expected);
+
+        /* 分配缓冲区 */
+        uint32_t fsize = f->size;
+        uint8_t *buf = (uint8_t *)kmalloc(fsize);
+        if (!buf) {
+            vga_set_color(VGA_COLOR_RED, VGA_COLOR_BLACK);
+            vga_puts("Out of memory!\n");
+            vga_set_color(VGA_COLOR_WHITE, VGA_COLOR_BLACK);
+            vfs_close(f);
+            return;
+        }
+
+        /* 读取文件 */
+        vfs_read(f, buf, fsize);
+        vfs_close(f);
+
+        /* 计算哈希 */
+        uint8_t digest[64];
+        char computed[129];
+
+        /* 使用SHA-512/256 */
+        sha512_256_data(buf, fsize, digest);
+        hash_to_string(digest, 32, computed);
+
+        /* 比较 */
+        vga_puts("\nComputed: ");
+        vga_set_color(VGA_COLOR_LIGHT_GREEN, VGA_COLOR_BLACK);
+        vga_printf("%s\n", computed);
+        vga_set_color(VGA_COLOR_WHITE, VGA_COLOR_BLACK);
+
+        if (hash_verify(digest, 32, expected)) {
+            vga_set_color(VGA_COLOR_LIGHT_GREEN, VGA_COLOR_BLACK);
+            vga_puts("\n Verification SUCCESSFUL!\n");
+            vga_puts("  File integrity confirmed.\n");
+        } else {
+            vga_set_color(VGA_COLOR_RED, VGA_COLOR_BLACK);
+            vga_puts("\n Verification FAILED!\n");
+            vga_puts("  File may be corrupted or tampered!\n");
+        }
+        vga_set_color(VGA_COLOR_WHITE, VGA_COLOR_BLACK);
+
+        kfree(buf);
     } else {
         vga_set_color(VGA_COLOR_LIGHT_RED, VGA_COLOR_BLACK);
         vga_printf("Command not found: %s\n", cmd_name);
